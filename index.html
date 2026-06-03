@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="A high-end, visual-heavy, procedurally audio-enabled clone of the puzzle game Enzo Is You in HTML5 Canvas.">
+  <title>Enzo Is You - Neon Edition</title>
+  <!-- Google Fonts for retro/cyberpunk typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Outfit:wght@300;400;500;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <!-- Ambient Particle Canvas in Background -->
+  <canvas id="bgCanvas" class="bg-canvas"></canvas>
+
+  <div class="app-container">
+    <!-- SIDEBAR (HUD & Controls) -->
+    <aside class="sidebar glass">
+      <div class="sidebar-header mobile-only">
+        <button id="btnCloseSidebar" class="btn-close-drawer">&times;</button>
+      </div>
+      <div class="logo-container">
+        <h1 class="logo-neon">ENZO <span class="dim">IS</span> YOU</h1>
+        <p class="tagline">HTML5 NEON CLONE</p>
+      </div>
+
+      <div class="level-info">
+        <div class="info-row">
+          <span class="info-label">LEVEL</span>
+          <span id="levelNum" class="info-value text-glow-cyan">1 / 7</span>
+        </div>
+        <div class="info-row">
+          <h2 id="levelName" class="level-title">Enzo Is You</h2>
+        </div>
+        <p id="levelHint" class="level-hint">Push the rock out of the way to touch the flag.</p>
+      </div>
+
+      <!-- Live Rules Tracker -->
+      <div class="rules-section">
+        <h3>ACTIVE RULES</h3>
+        <div id="activeRulesList" class="rules-list">
+          <!-- Populated dynamically -->
+          <div class="rule-badge">ENZO IS YOU</div>
+          <div class="rule-badge">WALL IS STOP</div>
+        </div>
+      </div>
+
+      <!-- Live Move Stats -->
+      <div class="stats-section">
+        <div class="info-row">
+          <span>Moves</span>
+          <span id="moveCount" class="stat-value">0</span>
+        </div>
+        <div class="info-row">
+          <span>Undo Stack</span>
+          <span id="undoCount" class="stat-value">0</span>
+        </div>
+      </div>
+
+      <!-- Navigation & Game Buttons -->
+      <div class="buttons-grid">
+        <button id="btnUndo" class="btn btn-secondary" title="Undo (Hotkey: Z)">
+          <span>UNDO</span>
+          <span class="hotkey">Z</span>
+        </button>
+        <button id="btnRestart" class="btn btn-secondary" title="Restart (Hotkey: R)">
+          <span>RESTART</span>
+          <span class="hotkey">R</span>
+        </button>
+        <button id="btnLevelSelect" class="btn btn-primary">LEVEL SELECT</button>
+        <button id="btnToggleEditor" class="btn btn-accent">LEVEL EDITOR</button>
+      </div>
+
+      <!-- Settings Panel -->
+      <div class="settings-section">
+        <h3>SETTINGS</h3>
+        <div class="setting-item">
+          <label for="themeSelect">Graphic Style</label>
+          <select id="themeSelect" class="select-neon">
+            <option value="neon">Neon Cyberpunk</option>
+            <option value="retro">Classic Retro Pixel</option>
+            <option value="chalk">Chalkboard Sketch</option>
+            <option value="blueprint">Blueprint Draughtsman</option>
+            <option value="gameboy">Monochrome GameBoy</option>
+            <option value="paper">Paper Cutout</option>
+            <option value="candy">Candy Land</option>
+            <option value="matrix">Matrix Digital Code</option>
+            <option value="minimal">Minimalist Geometric</option>
+            <option value="watercolor">Aura Watercolor</option>
+            <!-- Material & Minimalist Designs -->
+            <option value="material">Material Design Light</option>
+            <option value="materialDark">Material Design Dark</option>
+            <option value="nordic">Nordic Frost</option>
+            <option value="solarizedLight">Solarized Light</option>
+            <option value="solarizedDark">Solarized Dark</option>
+            <option value="brutalist">Neo-Brutalist Pop</option>
+            <option value="cyberLight">Cyberpunk Light</option>
+            <option value="forest">Material Forest</option>
+            <option value="sand">Material Sand</option>
+            <option value="pastel">Pastel Minimalist</option>
+            <!-- Material Design 3 Themes -->
+            <option value="m3Lavender">Material 3 Lavender</option>
+            <option value="m3Mint">Material 3 Mint</option>
+            <option value="m3Coral">Material 3 Coral</option>
+            <option value="m3Sky">Material 3 Sky</option>
+            <option value="m3Lemon">Material 3 Lemon</option>
+            <option value="m3Rose">Material 3 Rose</option>
+            <option value="m3Emerald">Material 3 Emerald</option>
+            <option value="m3Clay">Material 3 Clay</option>
+            <option value="m3Charcoal">Material 3 Charcoal (Dark)</option>
+            <option value="m3Warm">Material 3 Warm Sand</option>
+          </select>
+        </div>
+        <div class="setting-item">
+          <label for="paletteSelect">Color Palette</label>
+          <select id="paletteSelect" class="select-neon">
+            <option value="default">Default Style Colors</option>
+            <option value="giantGoldfish">Giant Goldfish</option>
+            <option value="melancholy">Melancholy</option>
+            <option value="thoughtProvoking">Thought Provoking</option>
+            <option value="cheerUpEmo">Cheer Up Emo Kid</option>
+            <option value="vintageCardigan">Vintage Cardigan</option>
+            <option value="moorishGarden">Moorish Garden</option>
+            <option value="couplesQuarrel">Couples Quarrel</option>
+            <option value="freshCutDay">Fresh Cut Day</option>
+            <option value="oceanFive">Ocean Five</option>
+            <option value="cliviaCardigan">Clivia Cardigan</option>
+            <option value="aDreamInColor">A Dream in Color</option>
+            <option value="quietCry">Quiet Cry</option>
+            <option value="weddingSpells">Wedding Spells</option>
+            <option value="curiosityKilled">Curiosity Killed</option>
+            <option value="businessOfSilence">Business of Silence</option>
+            <option value="sweetLullaby">Sweet Lullaby</option>
+            <option value="daydreaming">Daydreaming</option>
+            <option value="littleMonster">I'm a Little Monster</option>
+            <option value="fadingStar">Fading Star</option>
+            <option value="citrusSalad">Citrus Salad</option>
+          </select>
+        </div>
+        <div class="setting-item">
+          <label for="musicVolSlider">Ambient Music</label>
+          <div class="control-row">
+            <input type="range" id="musicVolSlider" min="0" max="1" step="0.1" value="0.3">
+            <button id="btnMuteMusic" class="btn-icon">🔊</button>
+          </div>
+        </div>
+        <div class="setting-item">
+          <label for="sfxVolSlider">Sound Effects</label>
+          <div class="control-row">
+            <input type="range" id="sfxVolSlider" min="0" max="1" step="0.1" value="0.6">
+            <button id="btnMuteSFX" class="btn-icon">🔊</button>
+          </div>
+        </div>
+        <div class="setting-item flex-row">
+          <label for="chkGridLines">Show Grid Lines</label>
+          <input type="checkbox" id="chkGridLines" checked>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN VIEWPORT (Gameplay and Editor overlay) -->
+    <main class="main-content">
+      <!-- Game Canvas Frame -->
+      <div class="canvas-frame glass">
+        <div class="canvas-header">
+          <div class="window-dots-container desktop-only">
+            <div class="window-dot red"></div>
+            <div class="window-dot yellow"></div>
+            <div class="window-dot green"></div>
+          </div>
+          <div class="hud-mobile-controls mobile-only">
+            <button id="btnMobileMenu" class="btn-hud">☰ Menu</button>
+            <button id="btnMobileUndo" class="btn-hud">↩ Undo</button>
+            <button id="btnMobileRestart" class="btn-hud">↻ Restart</button>
+          </div>
+          <div id="playtestBadge" class="playtest-badge hide">PLAYTEST MODE (ESC TO EDIT)</div>
+          <div class="hud-level-name mobile-only" id="hudLevelName">Level 1</div>
+          <div class="hud-moves-count mobile-only" id="hudMovesCount">Moves: 0</div>
+        </div>
+        <div class="canvas-wrapper">
+          <canvas id="gameCanvas"></canvas>
+        </div>
+      </div>
+    </main>
+
+    <!-- EDITOR SIDEBAR (Appears only in editor mode) -->
+    <aside id="editorPanel" class="editor-sidebar glass hide">
+      <div class="editor-header">
+        <div class="header-row">
+          <h2>LEVEL EDITOR</h2>
+          <button id="btnCloseEditorPanel" class="btn-close-drawer mobile-only">&times;</button>
+        </div>
+        <p>Click/drag to paint. Right-click to erase.</p>
+      </div>
+
+      <!-- Grid Dimensions -->
+      <div class="editor-dimensions">
+        <div class="dim-input">
+          <label>W:</label>
+          <input type="number" id="editWidth" min="5" max="30" value="15">
+        </div>
+        <div class="dim-input">
+          <label>H:</label>
+          <input type="number" id="editHeight" min="5" max="30" value="11">
+        </div>
+        <button id="btnResizeGrid" class="btn btn-small">RESIZE</button>
+      </div>
+
+      <!-- Palette Categories -->
+      <div class="palette-container">
+        <h3>BRUSH PALETTE</h3>
+        
+        <div class="brush-group">
+          <h4>OBJECTS</h4>
+          <div class="brush-grid">
+            <button class="brush-btn active" data-brush="eraser" title="Eraser">🧹</button>
+            <button class="brush-btn" data-brush="enzo" title="Enzo">🐏</button>
+            <button class="brush-btn" data-brush="keke" title="Keke">🦊</button>
+            <button class="brush-btn" data-brush="wall" title="Wall">🧱</button>
+            <button class="brush-btn" data-brush="rock" title="Rock">🪨</button>
+            <button class="brush-btn" data-brush="flag" title="Flag">🚩</button>
+            <button class="brush-btn" data-brush="water" title="Water">💧</button>
+            <button class="brush-btn" data-brush="lava" title="Lava">🔥</button>
+            <button class="brush-btn" data-brush="grass" title="Grass">🌿</button>
+            <button class="brush-btn" data-brush="key" title="Key">🔑</button>
+            <button class="brush-btn" data-brush="door" title="Door">🚪</button>
+            <button class="brush-btn" data-brush="skull" title="Skull">💀</button>
+            <button class="brush-btn" data-brush="love" title="Heart">💖</button>
+          </div>
+        </div>
+
+        <div class="brush-group">
+          <h4>WORDS: NOUNS</h4>
+          <div class="brush-grid nouns">
+            <button class="brush-btn word-btn" data-brush="word-ENZO">ENZO</button>
+            <button class="brush-btn word-btn" data-brush="word-KEKE">KEKE</button>
+            <button class="brush-btn word-btn" data-brush="word-WALL">WALL</button>
+            <button class="brush-btn word-btn" data-brush="word-ROCK">ROCK</button>
+            <button class="brush-btn word-btn" data-brush="word-FLAG">FLAG</button>
+            <button class="brush-btn word-btn" data-brush="word-WATER">WATR</button>
+            <button class="brush-btn word-btn" data-brush="word-LAVA">LAVA</button>
+            <button class="brush-btn word-btn" data-brush="word-KEY">KEY</button>
+            <button class="brush-btn word-btn" data-brush="word-DOOR">DOOR</button>
+            <button class="brush-btn word-btn" data-brush="word-SKULL">SKUL</button>
+            <button class="brush-btn word-btn" data-brush="word-LOVE">LOVE</button>
+          </div>
+        </div>
+
+        <div class="brush-group">
+          <h4>WORDS: OPERATORS</h4>
+          <div class="brush-grid operators">
+            <button class="brush-btn word-btn" data-brush="word-IS">IS</button>
+          </div>
+        </div>
+
+        <div class="brush-group">
+          <h4>WORDS: PROPERTIES</h4>
+          <div class="brush-grid properties">
+            <button class="brush-btn word-btn" data-brush="word-YOU">YOU</button>
+            <button class="brush-btn word-btn" data-brush="word-PUSH">PUSH</button>
+            <button class="brush-btn word-btn" data-brush="word-STOP">STOP</button>
+            <button class="brush-btn word-btn" data-brush="word-WIN">WIN</button>
+            <button class="brush-btn word-btn" data-brush="word-DEFEAT">DFAT</button>
+            <button class="brush-btn word-btn" data-brush="word-SINK">SINK</button>
+            <button class="brush-btn word-btn" data-brush="word-MELT">MELT</button>
+            <button class="brush-btn word-btn" data-brush="word-HOT">HOT</button>
+            <button class="brush-btn word-btn" data-brush="word-OPEN">OPEN</button>
+            <button class="brush-btn word-btn" data-brush="word-SHUT">SHUT</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Editor Actions -->
+      <div class="editor-actions">
+        <button id="btnPlaytest" class="btn btn-primary">PLAYTEST</button>
+        <button id="btnClearGrid" class="btn btn-secondary">CLEAR GRID</button>
+        <button id="btnExportJSON" class="btn btn-secondary">EXPORT JSON</button>
+        <button id="btnImportJSON" class="btn btn-secondary">IMPORT JSON</button>
+        <button id="btnSaveCustom" class="btn btn-accent">SAVE CUSTOM</button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- MODAL: LEVEL SELECTOR -->
+  <div id="levelModal" class="modal-overlay hide">
+    <div class="modal-content glass">
+      <div class="modal-header">
+        <h2>SELECT LEVEL</h2>
+        <button id="btnCloseLevelModal" class="btn-close">&times;</button>
+      </div>
+      <div class="level-tabs">
+        <button id="tabBuiltIn" class="tab-btn active">BUILT-IN LEVELS</button>
+        <button id="tabCustom" class="tab-btn">MY CUSTOM LEVELS</button>
+      </div>
+      <!-- Category Filter Dropdown -->
+      <div id="categoryFilterWrapper" class="category-filter-container">
+        <label for="categorySelect">Choose Area:</label>
+        <select id="categorySelect" class="select-neon">
+          <option value="all">All Areas</option>
+          <option value="intro">Intro World</option>
+          <option value="lake">The Lake</option>
+          <option value="island">Solitary Island</option>
+        </select>
+      </div>
+      <div id="levelsGrid" class="levels-grid">
+        <!-- Populated by script -->
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EXPORT / IMPORT JSON -->
+  <div id="jsonModal" class="modal-overlay hide">
+    <div class="modal-content glass json-modal">
+      <div class="modal-header">
+        <h2 id="jsonModalTitle">Level JSON</h2>
+        <button id="btnCloseJsonModal" class="btn-close">&times;</button>
+      </div>
+      <p id="jsonModalDesc">Copy or paste your level JSON below.</p>
+      <textarea id="txtJsonArea" placeholder="Paste level JSON here..."></textarea>
+      <div class="modal-actions">
+        <button id="btnJsonAction" class="btn btn-primary">APPLY</button>
+        <button id="btnCopyJson" class="btn btn-secondary hide">COPY TO CLIPBOARD</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: LEVEL CLEARED (VICTORY) -->
+  <div id="victoryModal" class="modal-overlay hide">
+    <div class="victory-banner glass">
+      <h2 class="text-glow-yellow">LEVEL CLEARED!</h2>
+      <div class="victory-stars">
+        <span>⭐</span><span>⭐</span><span>⭐</span>
+      </div>
+      <p>Congratulations, you matched the win conditions in <span id="victoryMoves" class="text-glow-cyan">0</span> moves!</p>
+      <div class="victory-buttons">
+        <button id="btnNextLevel" class="btn btn-primary">NEXT LEVEL</button>
+        <button id="btnVictoryLevelSelect" class="btn btn-secondary">LEVEL SELECT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Backdrop for mobile drawers -->
+  <div id="drawerBackdrop" class="drawer-backdrop"></div>
+
+  <!-- Scripts loaded sequentially to avoid CORS issues -->
+  <script src="levels.js"></script>
+  <script src="sound.js"></script>
+  <script src="renderer.js"></script>
+  <script src="editor.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
