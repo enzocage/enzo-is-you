@@ -11,8 +11,50 @@ class LevelEditor {
   }
 
   init() {
+    this.setupBrushUI();
     this.setupListeners();
     this.resetEditorGrid();
+    
+    // Draw 3D thumbnails once Three.js and materials are ready
+    setTimeout(() => {
+      if (window.Renderer && typeof window.Renderer.renderEditorThumbnails === "function") {
+        window.Renderer.renderEditorThumbnails();
+      }
+    }, 150);
+  }
+
+  setupBrushUI() {
+    document.querySelectorAll(".brush-btn").forEach(btn => {
+      const brush = btn.getAttribute("data-brush");
+      if (!brush) return;
+
+      // Extract details
+      let nameText = "";
+      if (brush === "eraser") {
+        nameText = "ERASER";
+      } else if (brush.startsWith("word-")) {
+        nameText = brush.substring(5);
+      } else {
+        nameText = brush.toUpperCase();
+      }
+
+      // Clear original content
+      btn.innerHTML = "";
+
+      // Add 2D Canvas for WebGL image transfer
+      const canvas = document.createElement("canvas");
+      canvas.className = "brush-preview-canvas";
+      canvas.width = 64;
+      canvas.height = 64;
+      canvas.setAttribute("data-brush", brush);
+      btn.appendChild(canvas);
+
+      // Add label below
+      const label = document.createElement("span");
+      label.className = "brush-label";
+      label.textContent = nameText;
+      btn.appendChild(label);
+    });
   }
 
   // Paint boundaries
@@ -106,6 +148,13 @@ class LevelEditor {
       if (backdrop) backdrop.classList.add("active");
       
       this.resetEditorGrid();
+
+      // Draw 3D thumbnails in case they need refreshing
+      setTimeout(() => {
+        if (window.Renderer && typeof window.Renderer.renderEditorThumbnails === "function") {
+          window.Renderer.renderEditorThumbnails();
+        }
+      }, 50);
     }
   }
 
@@ -131,15 +180,10 @@ class LevelEditor {
   }
 
   paintCellAtMouse(e, eraseMode) {
-    const canvas = document.getElementById("gameCanvas");
-    const rect = canvas.getBoundingClientRect();
-    
-    // Map client coordinates to canvas dimensions
-    const clientX = e.clientX - rect.left - Renderer.gridOffsetX;
-    const clientY = e.clientY - rect.top - Renderer.gridOffsetY;
-    
-    const cellX = Math.floor(clientX / Renderer.cellWidth);
-    const cellY = Math.floor(clientY / Renderer.cellHeight);
+    // Use 3D raycasting to map screen coordinates to grid cells
+    const cell = Renderer.getGridCellFromMouse(e.clientX, e.clientY, this.width, this.height);
+    if (!cell) return;
+    const { cellX, cellY } = cell;
     
     if (cellX < 0 || cellX >= this.width || cellY < 0 || cellY >= this.height) {
       return; // out of grid boundaries
@@ -260,6 +304,21 @@ class LevelEditor {
     const copyBtn = document.getElementById("btnCopyJson");
     copyBtn.classList.remove("hide");
     
+    // Show download file button
+    const downloadBtn = document.getElementById("btnDownloadJson");
+    downloadBtn.classList.remove("hide");
+    downloadBtn.onclick = () => {
+      const blob = new Blob([jsonStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "level.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+    
     const actionBtn = document.getElementById("btnJsonAction");
     actionBtn.textContent = "CLOSE";
     actionBtn.onclick = () => {
@@ -278,6 +337,7 @@ class LevelEditor {
     txtArea.readOnly = false;
     
     document.getElementById("btnCopyJson").classList.add("hide");
+    document.getElementById("btnDownloadJson").classList.add("hide");
     
     const actionBtn = document.getElementById("btnJsonAction");
     actionBtn.textContent = "IMPORT";
@@ -350,12 +410,11 @@ class LevelEditor {
       btn.addEventListener("click", (e) => {
         document.querySelectorAll(".brush-btn").forEach(b => b.classList.remove("active"));
         
-        let target = e.target;
-        // Handle child icon clicking
-        if (target.tagName !== "BUTTON") target = target.parentElement;
-        
-        target.classList.add("active");
-        this.selectedBrush = target.getAttribute("data-brush");
+        const target = e.target.closest(".brush-btn");
+        if (target) {
+          target.classList.add("active");
+          this.selectedBrush = target.getAttribute("data-brush");
+        }
       });
     });
 

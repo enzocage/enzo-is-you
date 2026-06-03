@@ -10,10 +10,21 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Outfit:wght@300;400;500;700&family=Press+Start+2P&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="index.css">
+  <!-- Three.js core + post-processing for premium bloom & glow -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/FXAAShader.js"></script>
+
 </head>
 <body>
-  <!-- Ambient Particle Canvas in Background -->
-  <canvas id="bgCanvas" class="bg-canvas"></canvas>
+  <!-- bgCanvas hidden: Three.js handles the full scene including background -->
+  <canvas id="bgCanvas" class="bg-canvas" style="display:none"></canvas>
 
   <div class="app-container">
     <!-- SIDEBAR (HUD & Controls) -->
@@ -73,77 +84,25 @@
         <button id="btnToggleEditor" class="btn btn-accent">LEVEL EDITOR</button>
       </div>
 
+      <!-- Help info and toggle in UI area -->
+      <div class="help-section-sidebar">
+        <button id="btnHelp" class="btn btn-secondary" title="Help Overlay (Hotkey: H)">
+          <span>HELP DETAILS</span>
+          <span class="hotkey">H</span>
+        </button>
+        <div class="help-info-tip">
+          Double-click playfield to reset view
+        </div>
+      </div>
+
       <!-- Settings Panel -->
       <div class="settings-section">
         <h3>SETTINGS</h3>
         <div class="setting-item">
-          <label for="themeSelect">Graphic Style</label>
-          <select id="themeSelect" class="select-neon">
-            <option value="neon">Neon Cyberpunk</option>
-            <option value="retro">Classic Retro Pixel</option>
-            <option value="chalk">Chalkboard Sketch</option>
-            <option value="blueprint">Blueprint Draughtsman</option>
-            <option value="gameboy">Monochrome GameBoy</option>
-            <option value="paper">Paper Cutout</option>
-            <option value="candy">Candy Land</option>
-            <option value="matrix">Matrix Digital Code</option>
-            <option value="minimal">Minimalist Geometric</option>
-            <option value="watercolor">Aura Watercolor</option>
-            <!-- Material & Minimalist Designs -->
-            <option value="material">Material Design Light</option>
-            <option value="materialDark">Material Design Dark</option>
-            <option value="nordic">Nordic Frost</option>
-            <option value="solarizedLight">Solarized Light</option>
-            <option value="solarizedDark">Solarized Dark</option>
-            <option value="brutalist">Neo-Brutalist Pop</option>
-            <option value="cyberLight">Cyberpunk Light</option>
-            <option value="forest">Material Forest</option>
-            <option value="sand">Material Sand</option>
-            <option value="pastel">Pastel Minimalist</option>
-            <!-- Material Design 3 Themes -->
-            <option value="m3Lavender">Material 3 Lavender</option>
-            <option value="m3Mint">Material 3 Mint</option>
-            <option value="m3Coral">Material 3 Coral</option>
-            <option value="m3Sky">Material 3 Sky</option>
-            <option value="m3Lemon">Material 3 Lemon</option>
-            <option value="m3Rose">Material 3 Rose</option>
-            <option value="m3Emerald">Material 3 Emerald</option>
-            <option value="m3Clay">Material 3 Clay</option>
-            <option value="m3Charcoal">Material 3 Charcoal (Dark)</option>
-            <option value="m3Warm">Material 3 Warm Sand</option>
-          </select>
-        </div>
-        <div class="setting-item">
-          <label for="paletteSelect">Color Palette</label>
-          <select id="paletteSelect" class="select-neon">
-            <option value="default">Default Style Colors</option>
-            <option value="giantGoldfish">Giant Goldfish</option>
-            <option value="melancholy">Melancholy</option>
-            <option value="thoughtProvoking">Thought Provoking</option>
-            <option value="cheerUpEmo">Cheer Up Emo Kid</option>
-            <option value="vintageCardigan">Vintage Cardigan</option>
-            <option value="moorishGarden">Moorish Garden</option>
-            <option value="couplesQuarrel">Couples Quarrel</option>
-            <option value="freshCutDay">Fresh Cut Day</option>
-            <option value="oceanFive">Ocean Five</option>
-            <option value="cliviaCardigan">Clivia Cardigan</option>
-            <option value="aDreamInColor">A Dream in Color</option>
-            <option value="quietCry">Quiet Cry</option>
-            <option value="weddingSpells">Wedding Spells</option>
-            <option value="curiosityKilled">Curiosity Killed</option>
-            <option value="businessOfSilence">Business of Silence</option>
-            <option value="sweetLullaby">Sweet Lullaby</option>
-            <option value="daydreaming">Daydreaming</option>
-            <option value="littleMonster">I'm a Little Monster</option>
-            <option value="fadingStar">Fading Star</option>
-            <option value="citrusSalad">Citrus Salad</option>
-          </select>
-        </div>
-        <div class="setting-item">
           <label for="musicVolSlider">Ambient Music</label>
           <div class="control-row">
-            <input type="range" id="musicVolSlider" min="0" max="1" step="0.1" value="0.3">
-            <button id="btnMuteMusic" class="btn-icon">🔊</button>
+            <input type="range" id="musicVolSlider" min="0" max="1" step="0.1" value="0">
+            <button id="btnMuteMusic" class="btn-icon">🔇</button>
           </div>
         </div>
         <div class="setting-item">
@@ -322,6 +281,7 @@
       <div class="modal-actions">
         <button id="btnJsonAction" class="btn btn-primary">APPLY</button>
         <button id="btnCopyJson" class="btn btn-secondary hide">COPY TO CLIPBOARD</button>
+        <button id="btnDownloadJson" class="btn btn-accent hide">DOWNLOAD FILE</button>
       </div>
     </div>
   </div>
@@ -337,6 +297,39 @@
       <div class="victory-buttons">
         <button id="btnNextLevel" class="btn btn-primary">NEXT LEVEL</button>
         <button id="btnVictoryLevelSelect" class="btn btn-secondary">LEVEL SELECT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: HELP OVERLAY -->
+  <div id="helpModal" class="modal-overlay hide">
+    <div class="modal-content glass">
+      <div class="modal-header">
+        <h2>GAME CONTROLS & HELP</h2>
+        <button id="btnCloseHelpModal" class="btn-close">&times;</button>
+      </div>
+      <div class="help-modal-body">
+        <div class="help-group">
+          <h3>🎮 MOVEMENT</h3>
+          <p><strong>Move / Push:</strong> <kbd>WASD</kbd> or <kbd>Arrow Keys</kbd></p>
+          <p><strong>Wait a turn:</strong> <kbd>Spacebar</kbd></p>
+        </div>
+        <div class="help-group">
+          <h3>⚙️ ACTIONS</h3>
+          <p><strong>Undo Move:</strong> <kbd>Z</kbd> (Reverts last step)</p>
+          <p><strong>Restart Level:</strong> <kbd>R</kbd> (Resets level completely)</p>
+          <p><strong>Help Menu:</strong> <kbd>H</kbd> (Toggle this menu)</p>
+        </div>
+        <div class="help-group">
+          <h3>🎥 3D CAMERA CONTROLS</h3>
+          <p><strong>Rotate Orbit:</strong> <kbd>Left Mouse Drag</kbd> (Free angles!)</p>
+          <p><strong>Zoom:</strong> <kbd>Mouse Scroll</kbd> or <kbd>Pinch Gesture</kbd></p>
+          <p><strong>Reset Perspective:</strong> <kbd>Double-Click</kbd> on the playfield</p>
+        </div>
+        <div class="help-group">
+          <h3>💡 HOW TO PLAY</h3>
+          <p>Read the active rules in the sidebar to understand interactions. Reconnect blocks to form new rules (e.g. <strong>ENZO IS YOU</strong>, <strong>ROCK IS PUSH</strong>, <strong>FLAG IS WIN</strong>) to guide your way to victory!</p>
+        </div>
       </div>
     </div>
   </div>

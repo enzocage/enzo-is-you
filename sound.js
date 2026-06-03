@@ -5,7 +5,8 @@ class SoundManager {
     this.ctx = null;
     this.masterVolume = 0.5;
     this.sfxVolume = 0.6;
-    this.musicVolume = 0.3;
+    this.musicVolume = 0.0;
+    this.bgMusicAudio = null;
     
     this.musicPlaying = false;
     this.ambientInterval = null;
@@ -35,12 +36,9 @@ class SoundManager {
 
   setMusicVolume(val) {
     this.musicVolume = parseFloat(val);
-    // Dynamically adjust volumes of active music oscillators
-    this.activeSynthNodes.forEach(node => {
-      if (node.gainNode && node.isMusic) {
-        node.gainNode.gain.setValueAtTime(this.musicVolume * this.masterVolume, this.ctx.currentTime);
-      }
-    });
+    if (this.bgMusicAudio) {
+      this.bgMusicAudio.volume = this.musicVolume * this.masterVolume;
+    }
   }
 
   // SFX Player
@@ -299,49 +297,35 @@ class SoundManager {
     }
   }
 
-  // Procedural Music System
+  // Custom MP3 Ambient Music stream
   startMusic() {
     this.init();
     if (this.musicPlaying) return;
     this.musicPlaying = true;
     
-    if (this.ctx.state === "suspended") {
+    if (this.ctx && this.ctx.state === "suspended") {
       this.ctx.resume();
     }
     
-    // Immediately play first chord
-    this.playNextAmbientChord();
+    if (!this.bgMusicAudio) {
+      this.bgMusicAudio = new Audio("https://nu.vgmtreasurechest.com/soundtracks/c64-remix-2018/deigeeid/01.%20Lightforce.mp3");
+      this.bgMusicAudio.loop = true;
+      this.bgMusicAudio.onerror = (e) => {
+        console.error("Background music failed to load or play:", e);
+      };
+    }
     
-    // Cycle chords every 7 seconds
-    this.ambientInterval = setInterval(() => {
-      this.playNextAmbientChord();
-      // Occasional random high shimmering notes
-      if (Math.random() > 0.4) {
-        setTimeout(() => this.playAmbientSparkle(), Math.random() * 3000 + 1000);
-      }
-    }, 7000);
+    this.bgMusicAudio.volume = this.musicVolume * this.masterVolume;
+    this.bgMusicAudio.play().catch(e => {
+      console.log("Audio play deferred:", e.message);
+    });
   }
 
   stopMusic() {
     this.musicPlaying = false;
-    if (this.ambientInterval) {
-      clearInterval(this.ambientInterval);
-      this.ambientInterval = null;
+    if (this.bgMusicAudio) {
+      this.bgMusicAudio.pause();
     }
-    
-    // Fade out all active notes smoothly
-    const now = this.ctx ? this.ctx.currentTime : 0;
-    this.activeSynthNodes.forEach(node => {
-      if (node.gainNode) {
-        try {
-          node.gainNode.gain.cancelScheduledValues(now);
-          node.gainNode.gain.setValueAtTime(node.gainNode.gain.value, now);
-          node.gainNode.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
-          node.osc.stop(now + 1.6);
-        } catch (e) {}
-      }
-    });
-    this.activeSynthNodes = [];
   }
 
   playNextAmbientChord() {

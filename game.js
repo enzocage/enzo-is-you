@@ -140,12 +140,43 @@ class GameEngine {
   setupInput() {
     // Keyboard inputs
     window.addEventListener("keydown", (e) => {
-      if (this.levelCompleted) return;
-      
-      // If typing in textarea or editor inputs, skip key commands
-      if (document.activeElement.tagName === "TEXTAREA" || document.activeElement.tagName === "INPUT") {
+      // Skip key commands only when typing in textarea or text/number inputs
+      const act = document.activeElement;
+      if (act.tagName === "TEXTAREA" || (act.tagName === "INPUT" && (act.type === "text" || act.type === "number"))) {
         return;
       }
+
+      // Help Modal Toggle on 'h' or 'H'
+      const helpModal = document.getElementById("helpModal");
+      const isHelpOpen = helpModal && !helpModal.classList.contains("hide");
+
+      if (e.key === "h" || e.key === "H") {
+        e.preventDefault();
+        if (helpModal) {
+          if (helpModal.classList.contains("hide")) {
+            helpModal.classList.remove("hide");
+            Sound.playSFX("rule");
+          } else {
+            helpModal.classList.add("hide");
+            Sound.playSFX("undo");
+          }
+        }
+        return;
+      }
+
+      if (e.key === "Escape" && isHelpOpen) {
+        e.preventDefault();
+        helpModal.classList.add("hide");
+        Sound.playSFX("undo");
+        return;
+      }
+
+      // If help modal is open, ignore all other actions
+      if (isHelpOpen) {
+        return;
+      }
+
+      if (this.levelCompleted) return;
 
       let dx = 0;
       let dy = 0;
@@ -725,12 +756,15 @@ class GameEngine {
   }
 
   setupUI() {
+
     // Graphic Style Theme Select
     const themeSelect = document.getElementById("themeSelect");
-    themeSelect.addEventListener("change", (e) => {
-      Renderer.setStyle(e.target.value);
-      Sound.playSFX("rule");
-    });
+    if (themeSelect) {
+      themeSelect.addEventListener("change", (e) => {
+        Renderer.setStyle(e.target.value);
+        Sound.playSFX("rule");
+      });
+    }
 
     // ColourLovers Color Palette Select
     const paletteSelect = document.getElementById("paletteSelect");
@@ -841,10 +875,16 @@ class GameEngine {
         muteMusicBtn.textContent = "🔇";
       }
     });
+    musicSlider.addEventListener("change", (e) => {
+      e.target.blur();
+    });
 
     sfxSlider.addEventListener("input", (e) => {
       Sound.setSFXVolume(e.target.value);
       muteSFXBtn.textContent = e.target.value > 0 ? "🔊" : "🔇";
+    });
+    sfxSlider.addEventListener("change", (e) => {
+      e.target.blur();
     });
 
     muteMusicBtn.addEventListener("click", () => {
@@ -899,6 +939,7 @@ class GameEngine {
     // Set slider initial positions
     musicSlider.value = Sound.musicVolume;
     sfxSlider.value = Sound.sfxVolume;
+    muteMusicBtn.textContent = Sound.musicVolume > 0 ? "🔊" : "🔇";
 
     // Start background music automatically on first interaction
     window.addEventListener("click", () => {
@@ -906,6 +947,35 @@ class GameEngine {
         Sound.startMusic();
       }
     }, { once: true });
+
+    // Help Modal Toggle bindings
+    const helpModal = document.getElementById("helpModal");
+    const toggleHelp = () => {
+      if (!helpModal) return;
+      if (helpModal.classList.contains("hide")) {
+        helpModal.classList.remove("hide");
+        Sound.playSFX("rule");
+      } else {
+        helpModal.classList.add("hide");
+        Sound.playSFX("undo");
+      }
+    };
+    const btnHelp = document.getElementById("btnHelp");
+    if (btnHelp) {
+      btnHelp.addEventListener("click", toggleHelp);
+    }
+    const btnCloseHelpModal = document.getElementById("btnCloseHelpModal");
+    if (btnCloseHelpModal) {
+      btnCloseHelpModal.addEventListener("click", toggleHelp);
+    }
+    if (helpModal) {
+      helpModal.addEventListener("click", (e) => {
+        if (e.target === helpModal) {
+          helpModal.classList.add("hide");
+          Sound.playSFX("undo");
+        }
+      });
+    }
   }
 
   populateLevelSelectGrid() {

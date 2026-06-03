@@ -1,1820 +1,312 @@
-// renderer.js - HTML5 Canvas Rendering Engine with 10 Graphic Styles for "Enzo Is You" Clone
+// renderer.js - High-End Three.js WebGL Rendering Engine for "Enzo Is You" Neon Clone
 
-class CanvasRenderer {
+class ThreeRenderer {
   constructor() {
     this.canvas = null;
-    this.ctx = null;
-    this.bgCanvas = null;
-    this.bgCtx = null;
+    this.bgCanvas = null; // Unused, Three.js renders to the main canvas
     
-    this.cellWidth = 0;
-    this.cellHeight = 0;
-    this.gridOffsetX = 0;
-    this.gridOffsetY = 0;
+    // Core Three.js components
+    this.scene = null;
+    this.camera = null;
+    this.renderer = null;
+    this.controls = null;
     
+    // Grid sizes
+    this.currentCols = 0;
+    this.currentRows = 0;
+    this.currentShowGrid = true;
+    
+    // Scene objects tracking
+    this.meshMap = new Map(); // id -> wrapper {mesh, targetPosition, targetScale, idHash, entName, ...}
+    this.floorMeshes = [];
+    
+    // Background layers
+    this.starfields = [];
+    this.nebulae = [];
+    
+    // Particle system
     this.particles = [];
-    this.bgParticles = [];
     
-    this.currentStyle = "neon"; // default
-    
-    // Screenshake state
+    // Screenshake properties
     this.shakeIntensity = 0;
-    this.shakeDecay = 0.9;
-    this.shakeX = 0;
-    this.shakeY = 0;
-
-    // Styles Configuration
-    this.stylesConfig = {
-      neon: {
-        bgMain: "#04040a",
-        gridLine: "rgba(0, 243, 255, 0.04)",
-        glowColor: "#00f3ff",
-        textColor: "#ffffff",
-        wordBorders: { noun: "#ff7f27", operator: "#ff007f", property: "#39ff14", default: "#ffffff" }
-      },
-      retro: {
-        bgMain: "#111111",
-        gridLine: "rgba(255, 255, 255, 0.03)",
-        glowColor: "transparent",
-        textColor: "#ffffff",
-        wordBorders: { noun: "#ff5555", operator: "#ff55ff", property: "#55ff55", default: "#ffffff" }
-      },
-      chalk: {
-        bgMain: "#163020", // chalkboard green
-        gridLine: "rgba(255, 255, 255, 0.06)",
-        glowColor: "rgba(255, 255, 255, 0.1)",
-        textColor: "rgba(255, 255, 255, 0.95)",
-        wordBorders: { noun: "rgba(255, 200, 100, 0.7)", operator: "rgba(255, 100, 150, 0.7)", property: "rgba(100, 255, 150, 0.7)", default: "rgba(255, 255, 255, 0.7)" }
-      },
-      blueprint: {
-        bgMain: "#0a2240", // blueprint blue
-        gridLine: "rgba(255, 255, 255, 0.12)",
-        glowColor: "#ffffff",
-        textColor: "#ffffff",
-        wordBorders: { noun: "#8ac9ff", operator: "#ff8ae9", property: "#8affae", default: "#ffffff" }
-      },
-      gameboy: {
-        bgMain: "#8bac0f", // light olive green
-        gridLine: "rgba(48, 98, 48, 0.15)",
-        glowColor: "transparent",
-        textColor: "#0f380f",
-        wordBorders: { noun: "#306230", operator: "#306230", property: "#306230", default: "#306230" }
-      },
-      paper: {
-        bgMain: "#e0dcd3", // cardboard grey-white
-        gridLine: "rgba(0, 0, 0, 0.05)",
-        glowColor: "rgba(0,0,0,0.15)",
-        textColor: "#2c2c2c",
-        wordBorders: { noun: "#e76f51", operator: "#f4a261", property: "#2a9d8f", default: "#264653" }
-      },
-      candy: {
-        bgMain: "#fff0f5", // lavender blush
-        gridLine: "rgba(255, 105, 180, 0.08)",
-        glowColor: "#ff69b4",
-        textColor: "#4a0e2e",
-        wordBorders: { noun: "#ff6b6b", operator: "#f06292", property: "#4db6ac", default: "#ba68c8" }
-      },
-      matrix: {
-        bgMain: "#000000",
-        gridLine: "rgba(0, 255, 70, 0.03)",
-        glowColor: "#00ff46",
-        textColor: "#00ff46",
-        wordBorders: { noun: "#00ff46", operator: "#00ff46", property: "#00ff46", default: "#00ff46" }
-      },
-      minimal: {
-        bgMain: "#f8f9fa",
-        gridLine: "rgba(0, 0, 0, 0.03)",
-        glowColor: "transparent",
-        textColor: "#212529",
-        wordBorders: { noun: "#f08c00", operator: "#d6336c", property: "#37b24d", default: "#495057" }
-      },
-      watercolor: {
-        bgMain: "#f4f1de", // watercolor paper
-        gridLine: "rgba(61, 64, 91, 0.04)",
-        glowColor: "rgba(61, 64, 91, 0.15)",
-        textColor: "#3d405b",
-        wordBorders: { noun: "#e07a5f", operator: "#f4f1de", property: "#81b29a", default: "#3d405b" }
-      },
-      material: {
-        bgMain: "#f5f5f5",
-        gridLine: "rgba(0, 0, 0, 0.04)",
-        glowColor: "transparent",
-        textColor: "#212121",
-        wordBorders: { noun: "#1a73e8", operator: "#e91e63", property: "#0f9d58", default: "#757575" }
-      },
-      materialDark: {
-        bgMain: "#121212",
-        gridLine: "rgba(255, 255, 255, 0.05)",
-        glowColor: "rgba(0, 243, 255, 0.1)",
-        textColor: "#e0e0e0",
-        wordBorders: { noun: "#8ab4f8", operator: "#ff8bcb", property: "#81c995", default: "#9aa0a6" }
-      },
-      nordic: {
-        bgMain: "#eceff4",
-        gridLine: "rgba(76, 86, 106, 0.06)",
-        glowColor: "transparent",
-        textColor: "#2e3440",
-        wordBorders: { noun: "#5e81ac", operator: "#bf616a", property: "#a3be8c", default: "#4c566a" }
-      },
-      solarizedLight: {
-        bgMain: "#fdf6e3",
-        gridLine: "rgba(88, 110, 117, 0.06)",
-        glowColor: "transparent",
-        textColor: "#586e75",
-        wordBorders: { noun: "#268bd2", operator: "#d33682", property: "#859900", default: "#586e75" }
-      },
-      solarizedDark: {
-        bgMain: "#002b36",
-        gridLine: "rgba(147, 161, 161, 0.05)",
-        glowColor: "transparent",
-        textColor: "#93a1a1",
-        wordBorders: { noun: "#268bd2", operator: "#d33682", property: "#859900", default: "#93a1a1" }
-      },
-      brutalist: {
-        bgMain: "#ffde7d",
-        gridLine: "rgba(0, 0, 0, 0.1)",
-        glowColor: "transparent",
-        textColor: "#000000",
-        wordBorders: { noun: "#3867d6", operator: "#eb3b5a", property: "#20bf6b", default: "#000000" }
-      },
-      cyberLight: {
-        bgMain: "#ffffff",
-        gridLine: "rgba(0, 243, 255, 0.08)",
-        glowColor: "transparent",
-        textColor: "#000000",
-        wordBorders: { noun: "#ff007f", operator: "#00f3ff", property: "#39ff14", default: "#000000" }
-      },
-      forest: {
-        bgMain: "#e8f5e9",
-        gridLine: "rgba(46, 125, 50, 0.05)",
-        glowColor: "transparent",
-        textColor: "#1b5e20",
-        wordBorders: { noun: "#2e7d32", operator: "#c62828", property: "#ef6c00", default: "#4e342e" }
-      },
-      sand: {
-        bgMain: "#efebe9",
-        gridLine: "rgba(141, 110, 99, 0.08)",
-        glowColor: "transparent",
-        textColor: "#3e2723",
-        wordBorders: { noun: "#d84315", operator: "#8d6e63", property: "#558b2f", default: "#3e2723" }
-      },
-      pastel: {
-        bgMain: "#faf5ff",
-        gridLine: "rgba(147, 51, 234, 0.04)",
-        glowColor: "transparent",
-        textColor: "#3b0764",
-        wordBorders: { noun: "#f472b6", operator: "#a78bfa", property: "#4ade80", default: "#6b7280" }
-      },
-      m3Lavender: {
-        bgMain: "#f8f2ff",
-        gridLine: "rgba(103, 80, 164, 0.05)",
-        glowColor: "transparent",
-        textColor: "#212529",
-        wordBorders: { noun: "#6750a4", operator: "#9c27b0", property: "#3b7a57", default: "#7d5260" },
-        entityColors: {
-          enzo: "#6750a4", keke: "#e040fb", wall: "#b0a2c7", rock: "#8c7b9e",
-          flag: "#ffd54f", water: "#90caf9", lava: "#ff8a80", grass: "#a5d6a7",
-          key: "#ffb74d", door: "#d1c4e9", skull: "#90a4ae", love: "#f06292"
-        }
-      },
-      m3Mint: {
-        bgMain: "#f0fbf6",
-        gridLine: "rgba(0, 106, 106, 0.05)",
-        glowColor: "transparent",
-        textColor: "#212529",
-        wordBorders: { noun: "#006a6a", operator: "#4a6363", property: "#bf4a2f", default: "#5c6350" },
-        entityColors: {
-          enzo: "#006a6a", keke: "#34c759", wall: "#a3b899", rock: "#7b8e72",
-          flag: "#f57c00", water: "#80deea", lava: "#ffab91", grass: "#c8e6c9",
-          key: "#fff59d", door: "#b2dfdb", skull: "#b0bec5", love: "#ff8a80"
-        }
-      },
-      m3Coral: {
-        bgMain: "#fff8f6",
-        gridLine: "rgba(191, 74, 47, 0.05)",
-        glowColor: "transparent",
-        textColor: "#212529",
-        wordBorders: { noun: "#bf4a2f", operator: "#77574e", property: "#006874", default: "#795548" },
-        entityColors: {
-          enzo: "#bf4a2f", keke: "#ff7043", wall: "#d7ccc8", rock: "#a1887f",
-          flag: "#fbc02d", water: "#4fc3f7", lava: "#ff3d00", grass: "#81c784",
-          key: "#ffe082", door: "#ffccbc", skull: "#cfd8dc", love: "#e91e63"
-        }
-      },
-      m3Sky: {
-        bgMain: "#f5f9ff",
-        gridLine: "rgba(0, 97, 164, 0.05)",
-        glowColor: "transparent",
-        textColor: "#212529",
-        wordBorders: { noun: "#0061a4", operator: "#535f70", property: "#b00020", default: "#4a148c" },
-        entityColors: {
-          enzo: "#0061a4", keke: "#29b6f6", wall: "#b0bec5", rock: "#78909c",
-          flag: "#ffb300", water: "#81d4fa", lava: "#ef5350", grass: "#9ccc65",
-          key: "#ffd54f", door: "#bbdefb", skull: "#b0bec5", love: "#f06292"
-        }
-      },
-      m3Lemon: {
-        bgMain: "#fffdf0",
-        gridLine: "rgba(105, 95, 0, 0.05)",
-        glowColor: "transparent",
-        textColor: "#212529",
-        wordBorders: { noun: "#695f00", operator: "#645f41", property: "#00796b", default: "#e65100" },
-        entityColors: {
-          enzo: "#695f00", keke: "#ffd600", wall: "#e0d8b0", rock: "#b8b08d",
-          flag: "#e65100", water: "#26c6da", lava: "#ff3d00", grass: "#80deea",
-          key: "#ff6f00", door: "#fff59d", skull: "#cfd8dc", love: "#e91e63"
-        }
-      },
-      m3Rose: {
-        bgMain: "#fff5f7",
-        gridLine: "rgba(200, 50, 100, 0.05)",
-        glowColor: "transparent",
-        textColor: "#212529",
-        wordBorders: { noun: "#b81d56", operator: "#8c4d63", property: "#006c8f", default: "#526066" },
-        entityColors: {
-          enzo: "#b81d56", keke: "#ff4081", wall: "#e8c4d0", rock: "#b89ba6",
-          flag: "#ffb74d", water: "#80deea", lava: "#ff8a80", grass: "#a5d6a7",
-          key: "#ffd54f", door: "#f8bbd0", skull: "#cfd8dc", love: "#ff1744"
-        }
-      },
-      m3Emerald: {
-        bgMain: "#f2fbf4",
-        gridLine: "rgba(12, 115, 66, 0.05)",
-        glowColor: "transparent",
-        textColor: "#212529",
-        wordBorders: { noun: "#0c7342", operator: "#4e6556", property: "#bf360c", default: "#3e2723" },
-        entityColors: {
-          enzo: "#0c7342", keke: "#00e676", wall: "#a5d6a7", rock: "#81c784",
-          flag: "#ffd54f", water: "#80deea", lava: "#ff5722", grass: "#c8e6c9",
-          key: "#ffe082", door: "#c8e6c9", skull: "#cfd8dc", love: "#e91e63"
-        }
-      },
-      m3Clay: {
-        bgMain: "#fbf6f2",
-        gridLine: "rgba(161, 85, 45, 0.05)",
-        glowColor: "transparent",
-        textColor: "#212529",
-        wordBorders: { noun: "#a1552d", operator: "#795548", property: "#2e7d32", default: "#5d4037" },
-        entityColors: {
-          enzo: "#a1552d", keke: "#ff8a65", wall: "#d7ccc8", rock: "#a1887f",
-          flag: "#fbc02d", water: "#80deea", lava: "#d84315", grass: "#a5d6a7",
-          key: "#ffe082", door: "#ffccbc", skull: "#b0bec5", love: "#e91e63"
-        }
-      },
-      m3Charcoal: {
-        bgMain: "#1c1b1f",
-        gridLine: "rgba(230, 225, 230, 0.05)",
-        glowColor: "transparent",
-        textColor: "#e3e3e3",
-        wordBorders: { noun: "#d0bcff", operator: "#ccc2dc", property: "#efb8c8", default: "#cac4d0" },
-        entityColors: {
-          enzo: "#d0bcff", keke: "#ff4081", wall: "#49454f", rock: "#625b71",
-          flag: "#ffd54f", water: "#80deea", lava: "#ff8a80", grass: "#a5d6a7",
-          key: "#ffe082", door: "#e8def8", skull: "#cfd8dc", love: "#efb8c8"
-        }
-      },
-      m3Warm: {
-        bgMain: "#fffbf4",
-        gridLine: "rgba(141, 110, 99, 0.05)",
-        glowColor: "transparent",
-        textColor: "#212529",
-        wordBorders: { noun: "#8d6e63", operator: "#a1887f", property: "#ff8f00", default: "#4e342e" },
-        entityColors: {
-          enzo: "#8d6e63", keke: "#ffb300", wall: "#e0d4c8", rock: "#b8a898",
-          flag: "#ff8f00", water: "#4fc3f7", lava: "#f4511e", grass: "#9ccc65",
-          key: "#ffe082", door: "#d7ccc8", skull: "#cfd8dc", love: "#e91e63"
-        }
-      }
-    };
-
-    this.currentColorScheme = "default";
-    this.colorSchemes = {
-      giantGoldfish: ["#69d2e7", "#a7dbd8", "#e0e4cc", "#f38630", "#fa6900"],
-      melancholy: ["#fe4365", "#fc9d9a", "#f9cdad", "#c8c8a9", "#83af9b"],
-      thoughtProvoking: ["#ecd078", "#d95b43", "#c02942", "#542437", "#53777a"],
-      cheerUpEmo: ["#556270", "#4ecdc4", "#c7f464", "#ff6b6b", "#c44d58"],
-      vintageCardigan: ["#774f38", "#e08e79", "#f1d4af", "#ece5ce", "#c5e0dc"],
-      moorishGarden: ["#e8ddcb", "#cdb380", "#036564", "#033649", "#031634"],
-      couplesQuarrel: ["#490a3d", "#bd1550", "#e97f02", "#f8ca00", "#8a9b0f"],
-      freshCutDay: ["#594f4f", "#547980", "#45ada8", "#9de0ad", "#e5fcc2"],
-      oceanFive: ["#00a0b0", "#6a4a3c", "#cc333f", "#eb6841", "#edc951"],
-      cliviaCardigan: ["#e94e77", "#d68189", "#c6a49a", "#c6e5d9", "#f4ead5"],
-      aDreamInColor: ["#3fb8af", "#7fc7af", "#dad8a7", "#ff9e9d", "#ff3d7f"],
-      quietCry: ["#d9ceb2", "#948c75", "#d5ded9", "#7a6a53", "#99b2b7"],
-      weddingSpells: ["#ffffff", "#cbe86b", "#f2e9e1", "#1c140d", "#cbe86b"],
-      curiosityKilled: ["#efffcd", "#dce9be", "#555152", "#2e2633", "#99173c"],
-      businessOfSilence: ["#343838", "#005f6b", "#008c9e", "#00b4cc", "#00dffc"],
-      sweetLullaby: ["#413e4a", "#73626e", "#b38184", "#f0b49e", "#f7e4be"],
-      daydreaming: ["#ff4e50", "#fc913a", "#f9d423", "#ede574", "#e1f5c4"],
-      littleMonster: ["#99b898", "#fecea8", "#ff847c", "#e84a5f", "#2a363b"],
-      fadingStar: ["#655643", "#80bca3", "#f6f7bd", "#e6ac27", "#bf4d28"],
-      citrusSalad: ["#00a8c6", "#40c0cb", "#f9f2e7", "#aee239", "#8fbe00"]
-    };
-
-    this.wordColors = {
-      noun: "#ff7f27",
-      operator: "#ff007f",
-      property: "#39ff14",
-      default: "#ffffff"
-    };
-
-    this.entityColors = {
-      enzo: "#ffffff",
-      keke: "#ff6600",
-      wall: "#4a4e69",
-      rock: "#a5a58d",
-      flag: "#ffd700",
-      water: "#00b4db",
-      lava: "#ff3300",
-      grass: "#2ec4b6",
-      key: "#e9c46a",
-      door: "#b5838d",
-      skull: "#e5e5e5",
-      love: "#ff007f"
-    };
-  }
-
-  init(gameCanvas, backgroundCanvas) {
-    this.canvas = gameCanvas;
-    this.ctx = gameCanvas.getContext("2d");
-    this.bgCanvas = backgroundCanvas;
-    this.bgCtx = backgroundCanvas.getContext("2d");
+    this.shakeDecay = 0.88;
+    this.cameraBasePos = new THREE.Vector3(0, 30, 0);
     
-    this.resize();
+    // Current settings placeholders
+    this.currentStyle = "neon";
+    this.currentColorScheme = "neon";
+    this.initialized = false;
+  }
+  
+  init(canvas, bgCanvas) {
+    if (this.initialized) return;
+    
+    this.canvas = canvas;
+    this.bgCanvas = bgCanvas;
+    
+    const parent = canvas.parentElement;
+    const width = parent.clientWidth;
+    const height = parent.clientHeight;
+    
+    canvas.width = width;
+    canvas.height = height;
+    
+    // Initialize WebGL Renderer
+    this.renderer = new THREE.WebGLRenderer({
+      canvas: canvas,
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance"
+    });
+    this.renderer.setSize(width, height);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    
+    // Scene creation
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x020208); // Deep indigo space background
+    this.scene.fog = new THREE.FogExp2(0x03030f, 0.012); // Fog for deep atmospheric layers
+    
+    // Top-down Orthographic Camera setup
+    this.camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 1, 1000);
+    this.camera.position.copy(this.cameraBasePos);
+    this.camera.lookAt(0, 0, 0);
+    this.camera.up.set(0, 0, -1); // Align camera up coordinate to grid Y (-z)
+    
+    // OrbitControls locked down to provide stable isometric/top-down view
+    this.controls = new THREE.OrbitControls(this.camera, canvas);
+    this.controls.enableRotate = false;
+    this.controls.enableZoom = false;
+    this.controls.enablePan = false;
+    this.controls.target.set(0, 0, 0);
+    
+    // --- High-End Neon Lighting System ---
+    // Deep dark purple-indigo ambient fills the shadow areas
+    const ambientLight = new THREE.AmbientLight(0x1a1a3a, 1.6);
+    this.scene.add(ambientLight);
+    
+    // Vibrant electric cyan key light from upper-left with soft shadow support
+    const keyLight = new THREE.DirectionalLight(0x00f3ff, 1.4);
+    keyLight.position.set(-8, 15, 5);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 1024;
+    keyLight.shadow.mapSize.height = 1024;
+    keyLight.shadow.bias = -0.002;
+    this.scene.add(keyLight);
+    
+    // Hot pink rim light from opposite angle to capture clean specular highlight wiggles
+    const rimLight = new THREE.DirectionalLight(0xff007f, 1.0);
+    rimLight.position.set(8, 12, -5);
+    this.scene.add(rimLight);
+    
+    // Build background stars and nebulae
+    this._buildBackground();
+    
+    // Window Resize and reset camera triggers
     window.addEventListener("resize", () => this.resize());
+    canvas.addEventListener("dblclick", () => this.resetCamera());
     
-    this.initBgParticles();
+    this.initialized = true;
   }
-
-  setStyle(styleName) {
-    if (this.stylesConfig[styleName]) {
-      this.currentStyle = styleName;
-      this.initBgParticles(); // Re-seed particles for the theme
-    }
-  }
-
-  setColorScheme(schemeName) {
-    if (schemeName === "default" || this.colorSchemes[schemeName]) {
-      this.currentColorScheme = schemeName;
-    }
-  }
-
-  isMaterialStyle(styleName) {
-    return styleName.startsWith("m3") || 
-           ["material", "materialDark", "forest", "sand", "minimal", "nordic", "solarizedLight", "solarizedDark", "cyberLight", "pastel"].includes(styleName);
-  }
-
+  
   resize() {
     if (!this.canvas) return;
-
-    const wrapper = this.canvas.parentElement;
-    const rect = wrapper.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-
-    const width = rect.width;
-    const height = rect.height;
-
-    this.canvas.width = width * dpr;
-    this.canvas.height = height * dpr;
-    this.canvas.style.width = width + "px";
-    this.canvas.style.height = height + "px";
-    this.ctx.scale(dpr, dpr);
-
-    if (this.bgCanvas) {
-      this.bgCanvas.width = window.innerWidth * dpr;
-      this.bgCanvas.height = window.innerHeight * dpr;
-      this.bgCanvas.style.width = window.innerWidth + "px";
-      this.bgCanvas.style.height = window.innerHeight + "px";
-      this.bgCtx.scale(dpr, dpr);
+    const parent = this.canvas.parentElement;
+    const width = parent.clientWidth;
+    const height = parent.clientHeight;
+    
+    this.canvas.width = width;
+    this.canvas.height = height;
+    
+    if (this.renderer) {
+      this.renderer.setSize(width, height);
+    }
+    
+    this._updateCameraZoom();
+  }
+  
+  _updateCameraZoom() {
+    if (!this.camera || !this.canvas) return;
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    const aspect = width / height;
+    
+    const cols = this.currentCols || 15;
+    const rows = this.currentRows || 11;
+    
+    // Calculate d to fit the grid perfectly at 100% of the viewport width or height
+    const d = Math.max(cols / aspect, rows) * 0.505;
+    
+    this.camera.left = -d * aspect;
+    this.camera.right = d * aspect;
+    this.camera.top = d;
+    this.camera.bottom = -d;
+    this.camera.updateProjectionMatrix();
+  }
+  
+  resetCamera() {
+    this.shakeIntensity = 0;
+    this.cameraBasePos.set(0, 30, 0);
+    this.camera.position.copy(this.cameraBasePos);
+    this.camera.lookAt(0, 0, 0);
+    this.camera.up.set(0, 0, -1);
+    if (this.controls) {
+      this.controls.target.set(0, 0, 0);
+      this.controls.update();
     }
   }
-
-  triggerShake(intensity = 8) {
-    this.shakeIntensity = intensity;
-  }
-
-  updateShake() {
-    if (this.shakeIntensity > 0.1) {
-      this.shakeX = (Math.random() * 2 - 1) * this.shakeIntensity;
-      this.shakeY = (Math.random() * 2 - 1) * this.shakeIntensity;
-      this.shakeIntensity *= this.shakeDecay;
-    } else {
-      this.shakeX = 0;
-      this.shakeY = 0;
-      this.shakeIntensity = 0;
-    }
-  }
-
-  getWordPhase(id) {
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) {
-      hash = id.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return Math.abs(hash % 100) / 100;
-  }
-
-  // CORE DRAW FUNCTION
-  draw(entities, rules, cols, rows, showGrid, isEditorMode) {
-    if (!this.ctx) return;
-    
-    this.updateShake();
-    this.updateParticles();
-
-    const w = this.canvas.width / (window.devicePixelRatio || 1);
-    const h = this.canvas.height / (window.devicePixelRatio || 1);
-
-    // Clear Canvas
-    this.ctx.clearRect(0, 0, w, h);
-    
-    this.ctx.save();
-    this.ctx.translate(this.shakeX, this.shakeY);
-
-    const padding = 20;
-    const availableW = w - padding * 2;
-    const availableH = h - padding * 2;
-    
-    const sizeByW = availableW / cols;
-    const sizeByH = availableH / rows;
-    const cellSize = Math.min(sizeByW, sizeByH);
-    
-    this.cellWidth = cellSize;
-    this.cellHeight = cellSize;
-    this.gridOffsetX = (w - (cols * cellSize)) / 2;
-    this.gridOffsetY = (h - (rows * cellSize)) / 2;
-
-    const style = this.stylesConfig[this.currentStyle];
-
-    // 1. Draw grid board background
-    this.ctx.fillStyle = style.bgMain;
-    this.ctx.fillRect(this.gridOffsetX, this.gridOffsetY, cols * cellSize, rows * cellSize);
-
-    // Watercolor background overlay texture
-    if (this.currentStyle === "watercolor") {
-      this.drawWatercolorTexture(cols, rows, cellSize);
-    }
-
-    // 2. Draw Grid Lines
-    if (showGrid) {
-      this.ctx.strokeStyle = style.gridLine;
-      this.ctx.lineWidth = this.currentStyle === "blueprint" ? 1.5 : 1;
-      
-      // Blueprint grid has subdivisions
-      if (this.currentStyle === "blueprint") {
-        this.ctx.strokeStyle = "rgba(255, 255, 255, 0.04)";
-        for (let x = 0; x < cols * 4; x++) {
-          this.ctx.beginPath();
-          this.ctx.moveTo(this.gridOffsetX + x * (cellSize / 4), this.gridOffsetY);
-          this.ctx.lineTo(this.gridOffsetX + x * (cellSize / 4), this.gridOffsetY + rows * cellSize);
-          this.ctx.stroke();
-        }
-        for (let y = 0; y < rows * 4; y++) {
-          this.ctx.beginPath();
-          this.ctx.moveTo(this.gridOffsetX, this.gridOffsetY + y * (cellSize / 4));
-          this.ctx.lineTo(this.gridOffsetX + cols * cellSize, this.gridOffsetY + y * (cellSize / 4));
-          this.ctx.stroke();
-        }
+  
+  _buildBackground() {
+    // 1. Double-Layer Animated Starfield
+    const buildStarfield = (count, size, pulseColor, rx, ry) => {
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(count * 3);
+      for (let i = 0; i < count * 3; i += 3) {
+        pos[i] = (Math.random() - 0.5) * 100;
+        pos[i+1] = -7 - Math.random() * 10; // Placed far below the playfield grid plane
+        pos[i+2] = (Math.random() - 0.5) * 100;
       }
-
-      this.ctx.strokeStyle = style.gridLine;
-      for (let x = 0; x <= cols; x++) {
-        this.ctx.beginPath();
-        this.ctx.moveTo(this.gridOffsetX + x * cellSize, this.gridOffsetY);
-        this.ctx.lineTo(this.gridOffsetX + x * cellSize, this.gridOffsetY + rows * cellSize);
-        this.ctx.stroke();
-      }
-      for (let y = 0; y <= rows; y++) {
-        this.ctx.beginPath();
-        this.ctx.moveTo(this.gridOffsetX, this.gridOffsetY + y * cellSize);
-        this.ctx.lineTo(this.gridOffsetX + cols * cellSize, this.gridOffsetY + y * cellSize);
-        this.ctx.stroke();
-      }
-    }
-
-    // Layered drawing order
-    const renderOrder = {
-      grass: 0, water: 1, lava: 2, wall: 3, rock: 4, key: 5, door: 6, skull: 7, flag: 8, keke: 9, enzo: 10, love: 11, text: 12
-    };
-
-    const sortedEntities = [...entities].sort((a, b) => {
-      const orderA = renderOrder[a.name] !== undefined ? renderOrder[a.name] : 5;
-      const orderB = renderOrder[b.name] !== undefined ? renderOrder[b.name] : 5;
-      return orderA - orderB;
-    });
-
-    // 3. Draw Entities
-    sortedEntities.forEach(ent => {
-      let visualX = ent.x;
-      let visualY = ent.y;
-      let scaleX = 1;
-      let scaleY = 1;
-
-      if (ent.anim) {
-        const elapsed = Date.now() - ent.anim.startTime;
-        const p = Math.min(1, elapsed / ent.anim.duration);
-        
-        if (p >= 1) {
-          delete ent.anim;
-        } else {
-          const t = p * (2 - p);
-          
-          if (ent.anim.type === "slide") {
-            visualX = ent.anim.startX + (ent.anim.targetX - ent.anim.startX) * t;
-            visualY = ent.anim.startY + (ent.anim.targetY - ent.anim.startY) * t;
-            
-            const dx = ent.anim.targetX - ent.anim.startX;
-            const dy = ent.anim.targetY - ent.anim.startY;
-            const stretch = 0.12 * Math.sin(p * Math.PI);
-            
-            if (dx !== 0) {
-              scaleX = 1 + stretch;
-              scaleY = 1 - stretch;
-            } else if (dy !== 0) {
-              scaleY = 1 + stretch;
-              scaleX = 1 - stretch;
-            }
-          } else if (ent.anim.type === "bump") {
-            const nudge = 0.15 * Math.sin(p * Math.PI);
-            visualX = ent.x + ent.anim.dx * nudge;
-            visualY = ent.y + ent.anim.dy * nudge;
-            
-            const squash = 0.1 * Math.sin(p * Math.PI);
-            if (ent.anim.dx !== 0) {
-              scaleX = 1 - squash;
-              scaleY = 1 + squash;
-            } else if (ent.anim.dy !== 0) {
-              scaleY = 1 - squash;
-              scaleX = 1 + squash;
-            }
-          }
-        }
-      }
-
-      const drawCX = this.gridOffsetX + visualX * cellSize + cellSize / 2;
-      const drawCY = this.gridOffsetY + visualY * cellSize + cellSize / 2;
-
-      this.ctx.save();
-      this.ctx.translate(drawCX, drawCY);
-      this.ctx.scale(scaleX, scaleY);
+      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
       
-      if (ent.type === "word") {
-        const isActive = rules.some(r => r.words.some(w => w.id === ent.id));
-        this.drawWord(ent, cellSize, isActive);
-        
-        if (isActive && Math.random() < 0.05) {
-          this.emitStyleSparkle(drawCX, drawCY);
-        }
-      } else {
-        this.drawObject(ent, cellSize);
-      }
+      // Dynamic canvas glowing point map
+      const canvas = document.createElement("canvas");
+      canvas.width = 16;
+      canvas.height = 16;
+      const ctx = canvas.getContext("2d");
+      const grad = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
+      grad.addColorStop(0, "rgba(255, 255, 255, 1)");
+      grad.addColorStop(0.35, pulseColor);
+      grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 16, 16);
       
-      this.ctx.restore();
-    });
-
-    // 4. Draw Particles on Top
-    this.drawParticles();
-
-    this.ctx.restore();
-  }
-
-  drawWatercolorTexture(cols, rows, cellSize) {
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.fillStyle = "rgba(224, 122, 95, 0.015)";
-    ctx.beginPath();
-    ctx.arc(this.gridOffsetX + cols*cellSize*0.3, this.gridOffsetY + rows*cellSize*0.4, cols*cellSize*0.4, 0, Math.PI*2);
-    ctx.fill();
-    ctx.fillStyle = "rgba(129, 178, 154, 0.015)";
-    ctx.beginPath();
-    ctx.arc(this.gridOffsetX + cols*cellSize*0.7, this.gridOffsetY + rows*cellSize*0.6, cols*cellSize*0.3, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  // STYLE SPARKLE BRIDGE
-  emitStyleSparkle(x, y) {
-    const now = Date.now();
-    let col = "#00f3ff";
-    if (this.currentStyle === "candy") col = "#ff69b4";
-    if (this.currentStyle === "gameboy") col = "#306230";
-    if (this.currentStyle === "chalk") col = "#ffffff";
-    if (this.currentStyle === "matrix") col = "#00ff46";
-    if (this.currentStyle === "minimal") col = "#37b24d";
-    if (this.currentStyle === "watercolor") col = "#e07a5f";
-    if (this.currentStyle === "blueprint") col = "#8ac9ff";
-    if (this.currentStyle === "retro") col = "#ff55ff";
-    
-    this.emitSingleSparkle(x + (Math.random() - 0.5) * this.cellWidth, y + (Math.random() - 0.5) * this.cellHeight, col);
-  }
-
-  // DRAW BACKGROUND CANVAS
-  drawBackground() {
-    if (!this.bgCtx || !this.bgCanvas) return;
-    
-    const w = this.bgCanvas.width / (window.devicePixelRatio || 1);
-    const h = this.bgCanvas.height / (window.devicePixelRatio || 1);
-    
-    // Custom background decay trail depending on theme
-    if (this.currentStyle === "matrix") {
-      this.bgCtx.fillStyle = "rgba(0, 0, 0, 0.08)"; // Matrix long trails
-    } else if (this.currentStyle === "gameboy") {
-      this.bgCtx.fillStyle = "#8bac0f"; // Static LCD
-    } else if (this.currentStyle === "watercolor") {
-      this.bgCtx.fillStyle = "#f4f1de"; // White watercolor wash paper
-    } else if (this.currentStyle === "blueprint") {
-      this.bgCtx.fillStyle = "#0a2240"; // Drafting paper
-    } else if (this.currentStyle === "chalk") {
-      this.bgCtx.fillStyle = "#163020"; // Chalkboard green
-    } else if (this.currentStyle === "candy") {
-      this.bgCtx.fillStyle = "#fff0f5"; // Lavender
-    } else if (this.currentStyle === "minimal") {
-      this.bgCtx.fillStyle = "#f8f9fa"; // Clean paper
-    } else if (this.currentStyle === "paper") {
-      this.bgCtx.fillStyle = "#e0dcd3";
-    } else if (this.stylesConfig[this.currentStyle]) {
-      this.bgCtx.fillStyle = this.stylesConfig[this.currentStyle].bgMain;
-    } else {
-      this.bgCtx.fillStyle = "rgba(7, 7, 16, 0.25)"; // Cyberpunk spaces
-    }
-    
-    this.bgCtx.fillRect(0, 0, w, h);
-    
-    // Draw background grid paper for blueprint
-    if (this.currentStyle === "blueprint") {
-      this.drawBlueprintBackgroundLines(w, h);
-    }
-    
-    // Update and draw background elements
-    this.bgParticles.forEach(p => {
-      p.y += p.vy;
-      p.x += p.vx;
-      
-      // Wrapping bounds
-      if (p.y > h) { p.y = 0; p.x = Math.random() * w; }
-      if (p.x > w) p.x = 0;
-      if (p.x < 0) p.x = w;
-      
-      this.bgCtx.save();
-      
-      if (this.currentStyle === "matrix") {
-        // Matrix Code Rain glyph drops
-        this.bgCtx.font = `${p.size * 1.8}px monospace`;
-        this.bgCtx.fillStyle = `rgba(0, 255, 70, ${p.alpha})`;
-        this.bgCtx.fillText(p.char, p.x, p.y);
-        
-        // Mutate falling glyph occasionally
-        if (Math.random() < 0.05) {
-          const glyphs = "ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ1234567890$#@%";
-          p.char = glyphs[Math.floor(Math.random() * glyphs.length)];
-        }
-      } else if (this.currentStyle === "chalk") {
-        // Drifting chalk dust dots
-        this.bgCtx.beginPath();
-        this.bgCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        this.bgCtx.fillStyle = `rgba(255, 255, 255, ${p.alpha * 0.3})`;
-        this.bgCtx.fill();
-      } else if (this.currentStyle === "gameboy") {
-        // Square pixels scrolling
-        this.bgCtx.fillStyle = `rgba(15, 56, 15, ${p.alpha * 0.12})`;
-        this.bgCtx.fillRect(p.x, p.y, p.size * 2, p.size * 2);
-      } else if (this.currentStyle === "candy") {
-        // Floating pastel sprinkles
-        this.bgCtx.fillStyle = p.color;
-        this.bgCtx.fillRect(p.x, p.y, p.size * 2.5, p.size * 1);
-      } else if (this.currentStyle === "watercolor") {
-        // Floating transparent paint spots
-        this.bgCtx.beginPath();
-        this.bgCtx.arc(p.x, p.y, p.size * 4, 0, Math.PI * 2);
-        this.bgCtx.fillStyle = `rgba(61, 64, 91, ${p.alpha * 0.03})`;
-        this.bgCtx.fill();
-      } else if (this.isMaterialStyle(this.currentStyle) || this.currentStyle === "brutalist") {
-        // Clean geometric dots
-        this.bgCtx.beginPath();
-        this.bgCtx.arc(p.x, p.y, p.size * 0.8, 0, Math.PI * 2);
-        const isDark = this.currentStyle === "materialDark" || this.currentStyle === "solarizedDark" || this.currentStyle === "m3Charcoal";
-        this.bgCtx.fillStyle = isDark ? `rgba(255, 255, 255, ${p.alpha * 0.08})` : `rgba(0, 0, 0, ${p.alpha * 0.06})`;
-        this.bgCtx.fill();
-      } else if (this.currentStyle === "paper") {
-        // Paper confetti squares
-        this.bgCtx.fillStyle = p.color;
-        this.bgCtx.fillRect(p.x, p.y, p.size * 3, p.size * 3);
-      } else if (this.currentStyle === "blueprint") {
-        // technical coordinates floating
-        this.bgCtx.font = "8px monospace";
-        this.bgCtx.fillStyle = "rgba(255, 255, 255, 0.08)";
-        this.bgCtx.fillText(`[${Math.floor(p.x)},${Math.floor(p.y)}]`, p.x, p.y);
-      } else {
-        // Cyberpunk stars
-        const glow = Math.sin(Date.now() / 500 + p.phase) * 0.4 + 0.6;
-        this.bgCtx.beginPath();
-        this.bgCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        this.bgCtx.fillStyle = `rgba(0, 243, 255, ${p.alpha * glow})`;
-        this.bgCtx.shadowColor = "#00f3ff";
-        this.bgCtx.shadowBlur = p.size * 3;
-        this.bgCtx.fill();
-      }
-      
-      this.bgCtx.restore();
-    });
-  }
-
-  drawBlueprintBackgroundLines(w, h) {
-    this.bgCtx.save();
-    this.bgCtx.strokeStyle = "rgba(255, 255, 255, 0.02)";
-    this.bgCtx.lineWidth = 1;
-    const spacing = 40;
-    for (let x = 0; x < w; x += spacing) {
-      this.bgCtx.beginPath();
-      this.bgCtx.moveTo(x, 0);
-      this.bgCtx.lineTo(x, h);
-      this.bgCtx.stroke();
-    }
-    for (let y = 0; y < h; y += spacing) {
-      this.bgCtx.beginPath();
-      this.bgCtx.moveTo(0, y);
-      this.bgCtx.lineTo(w, y);
-      this.bgCtx.stroke();
-    }
-    this.bgCtx.restore();
-  }
-
-  initBgParticles() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    this.bgParticles = [];
-    
-    const count = this.currentStyle === "matrix" ? 80 : 35;
-    const glyphs = "ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ1234567890$#@%";
-    const colors = ["#ffb3ba", "#baffc9", "#bae1ff", "#ffffba", "#ffdfba"];
-
-    for (let i = 0; i < count; i++) {
-      this.bgParticles.push({
-        x: Math.random() * w,
-        y: Math.random() * h,
-        size: Math.random() * 2 + 1,
-        vy: this.currentStyle === "matrix" ? Math.random() * 2 + 1.5 : Math.random() * 0.15 + 0.05,
-        vx: this.currentStyle === "matrix" ? 0 : (Math.random() - 0.5) * 0.05,
-        alpha: Math.random() * 0.25 + 0.05,
-        phase: Math.random() * Math.PI,
-        char: glyphs[Math.floor(Math.random() * glyphs.length)],
-        color: colors[Math.floor(Math.random() * colors.length)]
+      const texture = new THREE.CanvasTexture(canvas);
+      const mat = new THREE.PointsMaterial({
+        size: size,
+        map: texture,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
       });
+      
+      const sf = new THREE.Points(geo, mat);
+      this.scene.add(sf);
+      this.starfields.push({ mesh: sf, speedX: rx, speedY: ry });
+    };
+    
+    // Layer 1: Cyan starfield drifting clockwise
+    buildStarfield(600, 0.25, "rgba(0, 243, 255, 0.8)", 0.0002, 0.0004);
+    // Layer 2: Violet starfield drifting counter-clockwise
+    buildStarfield(500, 0.35, "rgba(255, 0, 127, 0.7)", -0.0001, 0.0003);
+    
+    // 2. Volumetric Glowing Cosmic Nebulae
+    const buildNebula = (c1, c2, radius, opacity, yPos, speedZ) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext("2d");
+      const grad = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+      grad.addColorStop(0, c1);
+      grad.addColorStop(0.45, c2);
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 512, 512);
+      
+      const texture = new THREE.CanvasTexture(canvas);
+      const planeGeo = new THREE.PlaneGeometry(60, 60);
+      const planeMat = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: opacity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
+      
+      const plane = new THREE.Mesh(planeGeo, planeMat);
+      plane.position.set((Math.random() - 0.5) * 8, yPos, (Math.random() - 0.5) * 8);
+      plane.rotation.x = Math.PI / 2; // Lie flat below the grid
+      plane.rotation.z = Math.random() * Math.PI * 2;
+      
+      this.scene.add(plane);
+      this.nebulae.push({ mesh: plane, speed: speedZ });
+    };
+    
+    // Layer nebulae with cyan, hot pink, purple, and radioactive emerald hues
+    buildNebula("rgba(255, 0, 127, 0.16)", "rgba(120, 0, 255, 0.08)", 32, 0.65, -9, 0.0006);
+    buildNebula("rgba(0, 243, 255, 0.20)", "rgba(0, 80, 255, 0.08)", 38, 0.50, -8, -0.0004);
+    buildNebula("rgba(180, 0, 255, 0.12)", "rgba(255, 0, 80, 0.05)", 28, 0.60, -10, 0.0002);
+    buildNebula("rgba(0, 255, 120, 0.08)", "rgba(0, 130, 255, 0.04)", 42, 0.40, -7, -0.0003);
+  }
+  
+  _rebuildFloor(cols, rows, showGrid) {
+    // Cleanup existing tiles
+    this.floorMeshes.forEach(tile => {
+      this.scene.remove(tile);
+      if (tile.geometry) tile.geometry.dispose();
+      if (tile.material) tile.material.dispose();
+    });
+    this.floorMeshes = [];
+    
+    if (cols <= 0 || rows <= 0) return;
+    
+    const tileW = 0.94;
+    const tileH = 0.05;
+    const geo = new THREE.BoxGeometry(tileW, tileH, tileW);
+    
+    for (let c = 0; c < cols; c++) {
+      for (let r = 0; r < rows; r++) {
+        // Floor tile: dark beveled obsidian block with neon glow edges
+        const mat = new THREE.MeshStandardMaterial({
+          color: 0x05050e,
+          roughness: 0.25,
+          metalness: 0.15,
+          transparent: true,
+          opacity: 0.45,
+          flatShading: true,
+          emissive: 0x00f3ff,
+          emissiveIntensity: 0.08 // Modulated dynamically by grid pulsator waves
+        });
+        
+        const tile = new THREE.Mesh(geo, mat);
+        // Map grid coordinate (c, r) centered around origin (0, 0, 0)
+        const x = c - cols / 2 + 0.5;
+        const z = r - rows / 2 + 0.5;
+        tile.position.set(x, -0.025, z);
+        tile.receiveShadow = true;
+        
+        this.scene.add(tile);
+        this.floorMeshes.push(tile);
+      }
     }
   }
-
-  // ENTITY GRAPHIC PLUGINS (CHECK DRAW STYLES)
-  drawObject(ent, size) {
-    const ctx = this.ctx;
-    const r = size * 0.45;
-    
-    let fill = this.entityColors[ent.name];
-    if (this.currentColorScheme !== "default" && this.colorSchemes[this.currentColorScheme]) {
-      const scheme = this.colorSchemes[this.currentColorScheme];
-      const mapping = {
-        enzo: scheme[0],
-        keke: scheme[1],
-        wall: scheme[2],
-        rock: scheme[3],
-        flag: scheme[4],
-        key: scheme[4],
-        door: scheme[3],
-        love: scheme[1],
-        skull: scheme[2],
-        grass: scheme[1],
-        water: scheme[0],
-        lava: scheme[2]
-      };
-      fill = mapping[ent.name] || fill;
-    } else if (this.stylesConfig[this.currentStyle] && this.stylesConfig[this.currentStyle].entityColors && this.stylesConfig[this.currentStyle].entityColors[ent.name]) {
-      fill = this.stylesConfig[this.currentStyle].entityColors[ent.name];
-    }
-
-    ctx.strokeStyle = "transparent";
-    ctx.fillStyle = fill || "#ffffff";
-    
-    // Style override colors
-    if (this.currentStyle === "gameboy") {
-      // 4 shade green Gameboy overrides
-      fill = ent.name === "wall" || ent.name === "skull" ? "#0f380f" : ent.name === "enzo" || ent.name === "love" ? "#c4f0c2" : "#306230";
-      ctx.fillStyle = fill;
-    } else if (this.currentStyle === "chalk") {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
-      ctx.lineWidth = 2;
-    } else if (this.currentStyle === "matrix") {
-      ctx.fillStyle = "#00ff46";
-      ctx.strokeStyle = "rgba(0, 255, 70, 0.3)";
-    } else if (this.currentStyle === "blueprint") {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
-      ctx.lineWidth = 1.5;
-    } else if (this.isMaterialStyle(this.currentStyle)) {
-      // solid clean colors, no outlines
-      ctx.lineWidth = 0;
-    } else if (this.currentStyle === "brutalist") {
-      ctx.fillStyle = fill;
-      ctx.strokeStyle = "#000000";
-      ctx.lineWidth = 2.5;
-    } else if (this.currentStyle === "watercolor") {
-      ctx.fillStyle = this.fadeColor(fill, 0.55);
-      ctx.strokeStyle = this.fadeColor(fill, 0.7);
-      ctx.lineWidth = 1.5;
-    }
-
-    // DRAW ROUTINES SWITCHING STYLES
+  
+  _getBaseY(ent) {
+    if (ent.type === "word") return 0.02;
     switch (ent.name) {
-      case "enzo":
-        this.drawEnzoSprite(ctx, r, ent.dir, fill);
-        break;
-      case "keke":
-        this.drawKekeSprite(ctx, r, ent.dir, fill);
-        break;
-      case "rock":
-        this.drawRockSprite(ctx, r, fill);
-        break;
-      case "wall":
-        this.drawWallSprite(ctx, r, fill);
-        break;
-      case "flag":
-        this.drawFlagSprite(ctx, r, fill);
-        break;
       case "water":
-        this.drawWaterSprite(ctx, r, fill);
-        break;
       case "lava":
-        this.drawLavaSprite(ctx, r, fill);
-        break;
+        return -0.02;
       case "grass":
-        this.drawGrassSprite(ctx, r, fill);
-        break;
+        return 0.01;
       case "key":
-        this.drawKeySprite(ctx, r, fill);
-        break;
-      case "door":
-        this.drawDoorSprite(ctx, r, fill);
-        break;
-      case "skull":
-        this.drawSkullSprite(ctx, r, fill);
-        break;
       case "love":
-        this.drawLoveSprite(ctx, r, fill);
-        break;
+        return 0.35; // Hover higher
+      case "flag":
+        return 0.22;
       default:
-        ctx.fillRect(-r, -r, r * 2, r * 2);
-        break;
+        return 0.20;
     }
   }
-
-  // 1. ENZO DRAW
-  drawEnzoSprite(ctx, r, dir, color) {
-    if (this.currentStyle === "matrix") {
-      this.drawASCII(ctx, "B", r * 1.5);
-      return;
-    }
-    
-    ctx.save();
-    
-    // Paper cut dropshadow
-    if (this.currentStyle === "paper") {
-      ctx.shadowColor = "rgba(0,0,0,0.18)";
-      ctx.shadowBlur = 6;
-      ctx.shadowOffsetY = 4;
-    }
-
-    if (this.isMaterialStyle(this.currentStyle)) {
-      // Solid minimal circle
-      const isDark = this.currentStyle === "materialDark" || this.currentStyle === "solarizedDark" || this.currentStyle === "m3Charcoal";
-      ctx.fillStyle = isDark ? "#eceff4" : "#ffffff";
-      ctx.beginPath();
-      ctx.arc(0, 0, r * 0.8, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Minimal dot eyes
-      ctx.fillStyle = isDark ? "#121212" : "#212529";
-      ctx.beginPath();
-      const ex = dir === 1 ? 5 : dir === 3 ? -5 : 0;
-      const ey = dir === 0 ? -5 : dir === 2 ? 5 : 0;
-      ctx.arc(ex - 3, ey, 2.5, 0, Math.PI*2);
-      ctx.arc(ex + 3, ey, 2.5, 0, Math.PI*2);
-      ctx.fill();
-      ctx.restore();
-      return;
-    }
-
-    if (this.currentStyle === "candy") {
-      // Fluffy Cotton Candy pink body
-      ctx.fillStyle = "#ffb3ba";
-      ctx.strokeStyle = "#ff85a1";
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.arc(-r * 0.35, -r * 0.15, r * 0.45, 0, Math.PI * 2);
-      ctx.arc(r * 0.35, -r * 0.15, r * 0.45, 0, Math.PI * 2);
-      ctx.arc(0, r * 0.3, r * 0.5, 0, Math.PI * 2);
-      ctx.arc(0, -r * 0.3, r * 0.4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      
-      // Candy stick at bottom
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(0, r * 0.45); ctx.lineTo(0, r * 0.95);
-      ctx.stroke();
-    } else {
-      // Normal Fluffy Cloud body
-      ctx.beginPath();
-      ctx.arc(-r * 0.4, -r * 0.2, r * 0.5, 0, Math.PI * 2);
-      ctx.arc(r * 0.4, -r * 0.2, r * 0.5, 0, Math.PI * 2);
-      ctx.arc(-r * 0.4, r * 0.3, r * 0.45, 0, Math.PI * 2);
-      ctx.arc(r * 0.4, r * 0.3, r * 0.45, 0, Math.PI * 2);
-      ctx.arc(0, 0, r * 0.7, 0, Math.PI * 2);
-      ctx.fill();
-      if (this.currentStyle === "chalk" || this.currentStyle === "blueprint" || this.currentStyle === "watercolor" || this.currentStyle === "brutalist") {
-        ctx.stroke();
-      }
-    }
-
-    if (this.currentStyle === "blueprint") {
-      // Blueprint tech lines
-      ctx.strokeStyle = "rgba(255,255,255,0.15)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(-r * 1.1, 0); ctx.lineTo(r * 1.1, 0);
-      ctx.moveTo(0, -r * 1.1); ctx.lineTo(0, r * 1.1);
-      ctx.arc(0, 0, r * 0.95, 0, Math.PI*2);
-      ctx.stroke();
-    }
-
-    // 4 legs
-    if (this.currentStyle !== "candy") {
-      ctx.strokeStyle = this.currentStyle === "gameboy" ? "#306230" : this.currentStyle === "chalk" ? "rgba(255,255,255,0.8)" : this.currentStyle === "blueprint" ? "#fff" : this.currentStyle === "brutalist" ? "#000000" : "#c5c5d0";
-      ctx.lineWidth = this.currentStyle === "brutalist" ? 4 : 3;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.4, r * 0.65); ctx.lineTo(-r * 0.4, r * 0.85);
-      ctx.moveTo(-r * 0.15, r * 0.75); ctx.lineTo(-r * 0.15, r * 0.95);
-      ctx.moveTo(r * 0.15, r * 0.75); ctx.lineTo(r * 0.15, r * 0.95);
-      ctx.moveTo(r * 0.4, r * 0.65); ctx.lineTo(r * 0.4, r * 0.85);
-      ctx.stroke();
-    }
-
-    // Blush cheeks
-    ctx.fillStyle = this.currentStyle === "gameboy" ? "#8bac0f" : "#ffb3ba";
-    ctx.beginPath();
-    ctx.arc(-r * 0.4, 0, r * 0.15, 0, Math.PI * 2);
-    ctx.arc(r * 0.4, 0, r * 0.15, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Eye direction
-    ctx.fillStyle = this.currentStyle === "gameboy" ? "#0f380f" : "#000000";
-    ctx.beginPath();
-    let eyeOffsetX = 0;
-    let eyeOffsetY = 0;
-    let spacingX = r * 0.22;
-    
-    if (dir === 0) { // UP
-      eyeOffsetY = -r * 0.3;
-      ctx.arc(-spacingX, eyeOffsetY, r * 0.08, 0, Math.PI * 2);
-      ctx.arc(spacingX, eyeOffsetY, r * 0.08, 0, Math.PI * 2);
-    } else if (dir === 1) { // RIGHT
-      eyeOffsetX = r * 0.3;
-      ctx.arc(eyeOffsetX, -r * 0.1, r * 0.08, 0, Math.PI * 2);
-      ctx.arc(eyeOffsetX + r * 0.18, -r * 0.1, r * 0.08, 0, Math.PI * 2);
-    } else if (dir === 2) { // DOWN
-      eyeOffsetY = r * 0.15;
-      ctx.arc(-spacingX, eyeOffsetY, r * 0.08, 0, Math.PI * 2);
-      ctx.arc(spacingX, eyeOffsetY, r * 0.08, 0, Math.PI * 2);
-    } else if (dir === 3) { // LEFT
-      eyeOffsetX = -r * 0.3;
-      ctx.arc(eyeOffsetX - r * 0.18, -r * 0.1, r * 0.08, 0, Math.PI * 2);
-      ctx.arc(eyeOffsetX, -r * 0.1, r * 0.08, 0, Math.PI * 2);
-    }
-    ctx.fill();
-    
-    ctx.restore();
+  
+  _getWordColor(word) {
+    const type = this.getWordType(word);
+    if (type === "noun") return "#ff7f27";      // Hot neon orange
+    if (type === "operator") return "#ff007f";  // Radioactive pink
+    return "#39ff14";                          // Acid green
   }
-
-  // 2. KEKE DRAW
-  drawKekeSprite(ctx, r, dir, color) {
-    if (this.currentStyle === "matrix") {
-      this.drawASCII(ctx, "K", r * 1.5);
-      return;
-    }
-    
-    ctx.save();
-    
-    if (this.currentStyle === "paper") {
-      ctx.shadowColor = "rgba(0,0,0,0.18)";
-      ctx.shadowBlur = 6;
-      ctx.shadowOffsetY = 4;
-    }
-
-    if (this.isMaterialStyle(this.currentStyle)) {
-      // Minimal geometric Keke (solid theme color triangle/circle combo)
-      ctx.fillStyle = color || "#ff6600";
-      ctx.beginPath();
-      ctx.arc(0, 0, r * 0.75, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Ears (2 triangles)
-      ctx.beginPath();
-      ctx.moveTo(-r*0.6, -r*0.3); ctx.lineTo(-r*0.5, -r*0.8); ctx.lineTo(-r*0.1, -r*0.5);
-      ctx.moveTo(r*0.6, -r*0.3); ctx.lineTo(r*0.5, -r*0.8); ctx.lineTo(r*0.1, -r*0.5);
-      ctx.fill();
-      
-      ctx.restore();
-      return;
-    }
-
-    // Fox Ears
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.65, -r * 0.25);
-    ctx.lineTo(-r * 0.5, -r * 0.8);
-    ctx.lineTo(-r * 0.2, -r * 0.4);
-    ctx.moveTo(r * 0.65, -r * 0.25);
-    ctx.lineTo(r * 0.5, -r * 0.8);
-    ctx.lineTo(r * 0.2, -r * 0.4);
-    ctx.fill();
-    if (this.currentStyle === "chalk" || this.currentStyle === "blueprint" || this.currentStyle === "watercolor" || this.currentStyle === "brutalist") {
-      ctx.stroke();
-    }
-
-    // Body
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.65, 0, Math.PI * 2);
-    ctx.fill();
-    if (this.currentStyle === "chalk" || this.currentStyle === "blueprint" || this.currentStyle === "watercolor" || this.currentStyle === "brutalist") {
-      ctx.stroke();
-    }
-
-    // White Chest fluff
-    ctx.fillStyle = this.currentStyle === "gameboy" ? "#8bac0f" : "#ffffff";
-    ctx.beginPath();
-    ctx.arc(0, r * 0.25, r * 0.35, 0, Math.PI * 2);
-    ctx.fill();
-    if (this.currentStyle === "chalk" || this.currentStyle === "blueprint" || this.currentStyle === "watercolor" || this.currentStyle === "brutalist") {
-      ctx.stroke();
-    }
-
-    // Eyes
-    ctx.fillStyle = this.currentStyle === "gameboy" ? "#306230" : "#ffffff";
-    ctx.beginPath();
-    let leftEyeX = -r * 0.25;
-    let rightEyeX = r * 0.25;
-    let eyeY = -r * 0.05;
-    
-    if (dir === 1) { // Right
-      leftEyeX = r * 0.05;
-      rightEyeX = r * 0.45;
-    } else if (dir === 3) { // Left
-      leftEyeX = -r * 0.45;
-      rightEyeX = -r * 0.05;
-    } else if (dir === 0) { // Up
-      eyeY = -r * 0.25;
-    } else if (dir === 2) { // Down
-      eyeY = r * 0.15;
-    }
-
-    ctx.arc(leftEyeX, eyeY, r * 0.12, 0, Math.PI * 2);
-    ctx.arc(rightEyeX, eyeY, r * 0.12, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Pupils
-    ctx.fillStyle = this.currentStyle === "gameboy" ? "#0f380f" : "#000000";
-    ctx.beginPath();
-    ctx.arc(leftEyeX + (dir === 1 ? 2 : dir === 3 ? -2 : 0), eyeY, r * 0.06, 0, Math.PI * 2);
-    ctx.arc(rightEyeX + (dir === 1 ? 2 : dir === 3 ? -2 : 0), eyeY, r * 0.06, 0, Math.PI * 2);
-    ctx.fill();
-    
-    ctx.restore();
-  }
-
-  // 3. ROCK DRAW
-  drawRockSprite(ctx, r, color) {
-    if (this.currentStyle === "matrix") {
-      this.drawASCII(ctx, "R", r * 1.5);
-      return;
-    }
-    
-    ctx.save();
-    
-    if (this.currentStyle === "paper") {
-      ctx.shadowColor = "rgba(0,0,0,0.18)";
-      ctx.shadowBlur = 6;
-      ctx.shadowOffsetY = 4;
-    }
-
-    if (this.isMaterialStyle(this.currentStyle)) {
-      ctx.fillStyle = color || "#888888";
-      ctx.beginPath();
-      ctx.arc(0, 0, r * 0.75, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-      return;
-    }
-
-    if (this.currentStyle === "candy") {
-      // Gummy candy rock (purple translucent)
-      ctx.fillStyle = "rgba(186, 104, 200, 0.85)";
-      ctx.strokeStyle = "#8e24aa";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(0, 0, r * 0.8, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      
-      // Sugar glow lines
-      ctx.strokeStyle = "rgba(255,255,255,0.4)";
-      ctx.beginPath();
-      ctx.arc(-r*0.2, -r*0.2, r*0.4, Math.PI, Math.PI*1.5);
-      ctx.stroke();
-      ctx.restore();
-      return;
-    }
-
-    // Rocky octagon path
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.6, -r * 0.7);
-    ctx.lineTo(r * 0.5, -r * 0.8);
-    ctx.lineTo(r * 0.9, -r * 0.2);
-    ctx.lineTo(r * 0.75, r * 0.7);
-    ctx.lineTo(-r * 0.25, r * 0.85);
-    ctx.lineTo(-r * 0.85, r * 0.4);
-    ctx.lineTo(-r * 0.9, -r * 0.15);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // inner cracks
-    if (this.currentStyle !== "gameboy") {
-      ctx.strokeStyle = this.currentStyle === "chalk" ? "rgba(255,255,255,0.4)" : this.currentStyle === "blueprint" ? "rgba(255,255,255,0.3)" : "#7c7c68";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.3, -r * 0.35);
-      ctx.lineTo(0, -r * 0.1);
-      ctx.lineTo(-r * 0.25, r * 0.3);
-      ctx.moveTo(r * 0.3, -r * 0.2);
-      ctx.lineTo(r * 0.1, r * 0.2);
-      ctx.lineTo(r * 0.4, r * 0.4);
-      ctx.stroke();
-    }
-    
-    ctx.restore();
-  }
-
-  // 4. WALL DRAW
-  drawWallSprite(ctx, r, color) {
-    if (this.currentStyle === "matrix") {
-      this.drawASCII(ctx, "█", r * 1.5);
-      return;
-    }
-    
-    ctx.save();
-    
-    if (this.currentStyle === "paper") {
-      ctx.shadowColor = "rgba(0,0,0,0.18)";
-      ctx.shadowBlur = 6;
-      ctx.shadowOffsetY = 4;
-    }
-
-    if (this.isMaterialStyle(this.currentStyle)) {
-      ctx.fillStyle = color || "#343a40";
-      ctx.beginPath();
-      ctx.roundRect(-r * 0.85, -r * 0.85, r * 1.7, r * 1.7, r * 0.25);
-      ctx.fill();
-      ctx.restore();
-      return;
-    }
-
-    if (this.currentStyle === "candy") {
-      // Chocolate bar wall segment
-      ctx.fillStyle = "#5c3d2e";
-      ctx.strokeStyle = "#382015";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.roundRect(-r * 0.85, -r * 0.85, r * 1.7, r * 1.7, 4);
-      ctx.fill();
-      ctx.stroke();
-      
-      // Chocolate block divisions
-      ctx.fillStyle = "#4a3024";
-      ctx.fillRect(-r*0.65, -r*0.65, r*0.5, r*0.5);
-      ctx.fillRect(r*0.15, -r*0.65, r*0.5, r*0.5);
-      ctx.fillRect(-r*0.65, r*0.15, r*0.5, r*0.5);
-      ctx.fillRect(r*0.15, r*0.15, r*0.5, r*0.5);
-      ctx.restore();
-      return;
-    }
-
-    ctx.beginPath();
-    ctx.roundRect(-r * 0.9, -r * 0.9, r * 1.8, r * 1.8, r * 0.35);
-    ctx.fill();
-    ctx.stroke();
-
-    // Neon glowing core wire, or chalk sketch brick border
-    if (this.currentStyle === "neon") {
-      ctx.strokeStyle = "rgba(100, 200, 255, 0.4)";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.roundRect(-r * 0.65, -r * 0.65, r * 1.3, r * 1.3, r * 0.25);
-      ctx.stroke();
-    } else if (this.currentStyle === "blueprint") {
-      // crosslines (draft lines)
-      ctx.strokeStyle = "rgba(255,255,255,0.3)";
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.9, -r * 0.9); ctx.lineTo(r * 0.9, r * 0.9);
-      ctx.moveTo(-r * 0.9, r * 0.9); ctx.lineTo(r * 0.9, -r * 0.9);
-      ctx.stroke();
-    }
-    
-    ctx.restore();
-  }
-
-  // 5. FLAG DRAW
-  drawFlagSprite(ctx, r, color) {
-    if (this.currentStyle === "matrix") {
-      this.drawASCII(ctx, "F", r * 1.5);
-      return;
-    }
-    
-    ctx.save();
-    
-    if (this.currentStyle === "paper") {
-      ctx.shadowColor = "rgba(0,0,0,0.18)";
-      ctx.shadowBlur = 6;
-      ctx.shadowOffsetY = 4;
-    }
-
-    if (this.isMaterialStyle(this.currentStyle)) {
-      // Solid flat minimal flag
-      const isDark = this.currentStyle === "m3Charcoal" || this.currentStyle === "materialDark";
-      ctx.strokeStyle = isDark ? "#e3e3e3" : "#495057";
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(-r*0.2, r*0.75); ctx.lineTo(-r*0.2, -r*0.75);
-      ctx.stroke();
-      
-      ctx.fillStyle = color || "#fcc419";
-      ctx.beginPath();
-      ctx.moveTo(-r*0.2, -r*0.75); ctx.lineTo(r*0.55, -r*0.45); ctx.lineTo(-r*0.2, -r*0.15);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-      return;
-    }
-
-    if (this.currentStyle === "candy") {
-      // Swirl Lollipop flag
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(0, r*0.85); ctx.lineTo(0, -r*0.2);
-      ctx.stroke();
-      
-      // Lollipop candy round
-      const pulse = Math.sin(Date.now() / 150) * 0.05 + 1;
-      ctx.scale(pulse, pulse);
-      
-      ctx.fillStyle = "#ff3366";
-      ctx.beginPath();
-      ctx.arc(0, -r*0.2, r*0.5, 0, Math.PI*2);
-      ctx.fill();
-      
-      // Spiral white line
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.arc(0, -r*0.2, r*0.3, 0, Math.PI, false);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(0, -r*0.2, r*0.15, Math.PI, 0, false);
-      ctx.stroke();
-      ctx.restore();
-      return;
-    }
-
-    // Pole
-    ctx.strokeStyle = this.currentStyle === "gameboy" ? "#306230" : this.currentStyle === "chalk" ? "rgba(255,255,255,0.8)" : this.currentStyle === "blueprint" ? "#fff" : "#c5c5d0";
-    ctx.lineWidth = 4;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.3, r * 0.85);
-    ctx.lineTo(-r * 0.3, -r * 0.8);
-    ctx.stroke();
-
-    // Stand base
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.6, r * 0.85);
-    ctx.lineTo(0, r * 0.85);
-    ctx.stroke();
-
-    // Flag fabric
-    ctx.fillStyle = this.currentStyle === "gameboy" ? "#0f380f" : this.currentStyle === "chalk" ? "rgba(255,255,255,0.15)" : "#ffcc00";
-    ctx.strokeStyle = this.currentStyle === "gameboy" ? "#306230" : this.currentStyle === "chalk" ? "rgba(255,255,255,0.8)" : "#cc9900";
-    ctx.lineWidth = 2;
-
-    const wave = Math.sin(Date.now() / 120) * r * 0.08;
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.3, -r * 0.7);
-    ctx.quadraticCurveTo(r * 0.2, -r * 0.6 + wave, r * 0.7, -r * 0.45);
-    ctx.lineTo(r * 0.7, -r * 0.05);
-    ctx.quadraticCurveTo(r * 0.1, -r * 0.2 + wave, -r * 0.3, -r * 0.3);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    
-    ctx.restore();
-  }
-
-  // 6. WATER DRAW
-  drawWaterSprite(ctx, r, color) {
-    if (this.currentStyle === "matrix") {
-      this.drawASCII(ctx, "~", r * 1.5);
-      return;
-    }
-    
-    ctx.save();
-    
-    const wave1 = Math.sin(Date.now() / 200) * r * 0.12;
-    const wave2 = Math.cos(Date.now() / 250) * r * 0.12;
-
-    ctx.beginPath();
-    ctx.moveTo(-r, r);
-    ctx.lineTo(-r, -r * 0.25 + wave1);
-    ctx.quadraticCurveTo(-r * 0.5, -r * 0.5 + wave2, 0, -r * 0.25 + wave1);
-    ctx.quadraticCurveTo(r * 0.5, -r * 0.5 + wave2, r, -r * 0.25 + wave1);
-    ctx.lineTo(r, r);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // inner water ripples
-    if (!this.isMaterialStyle(this.currentStyle) && this.currentStyle !== "gameboy") {
-      ctx.strokeStyle = this.currentStyle === "chalk" ? "rgba(255,255,255,0.3)" : "rgba(255, 255, 255, 0.4)";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.6, r * 0.3 + wave2 * 0.5);
-      ctx.quadraticCurveTo(-r * 0.3, r * 0.1, 0, r * 0.3);
-      ctx.moveTo(r * 0.1, r * 0.4 + wave1 * 0.5);
-      ctx.quadraticCurveTo(r * 0.45, r * 0.2, r * 0.7, r * 0.4);
-      ctx.stroke();
-    }
-    
-    ctx.restore();
-  }
-
-  // 7. LAVA DRAW
-  drawLavaSprite(ctx, r, color) {
-    if (this.currentStyle === "matrix") {
-      this.drawASCII(ctx, "*", r * 1.5);
-      return;
-    }
-    
-    ctx.save();
-
-    if (this.isMaterialStyle(this.currentStyle)) {
-      ctx.fillStyle = color || "#ff3300";
-      ctx.beginPath();
-      ctx.roundRect(-r * 0.85, -r * 0.85, r * 1.7, r * 1.7, r * 0.25);
-      ctx.fill();
-      ctx.restore();
-      return;
-    }
-
-    if (this.currentStyle === "candy") {
-      // Strawberry jam lava (bright pink red jelly)
-      ctx.fillStyle = "rgba(233, 30, 99, 0.8)";
-      ctx.strokeStyle = "#c2185b";
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.roundRect(-r*0.85, -r*0.85, r*1.7, r*1.7, 6);
-      ctx.fill();
-      ctx.stroke();
-      
-      // Bubbling white cream drops
-      const pb = Math.sin(Date.now() / 200) * 0.1 + 0.9;
-      ctx.fillStyle = "#fff";
-      ctx.beginPath();
-      ctx.arc(-r*0.3, -r*0.3, r*0.12*pb, 0, Math.PI*2);
-      ctx.arc(r*0.4, r*0.4, r*0.08*pb, 0, Math.PI*2);
-      ctx.fill();
-      ctx.restore();
-      return;
-    }
-
-    ctx.beginPath();
-    ctx.roundRect(-r * 0.95, -r * 0.95, r * 1.9, r * 1.9, r * 0.25);
-    ctx.fill();
-    if (this.currentStyle === "chalk" || this.currentStyle === "blueprint" || this.currentStyle === "watercolor") {
-      ctx.stroke();
-    }
-
-    // Bubbles
-    if (this.currentStyle !== "gameboy" && this.currentStyle !== "blueprint") {
-      const p1 = Math.sin(Date.now() / 150) * 0.1 + 0.9;
-      const p2 = Math.cos(Date.now() / 180) * 0.1 + 0.9;
-      
-      ctx.fillStyle = this.currentStyle === "watercolor" ? "rgba(244, 241, 222, 0.4)" : "#ff6600";
-      ctx.beginPath();
-      ctx.arc(-r * 0.3, -r * 0.3, r * 0.35 * p1, 0, Math.PI * 2);
-      ctx.arc(r * 0.4, r * 0.4, r * 0.25 * p2, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = this.currentStyle === "watercolor" ? "#f4f1de" : "#ffcc00";
-      ctx.beginPath();
-      ctx.arc(-r * 0.35, -r * 0.35, r * 0.12 * p1, 0, Math.PI * 2);
-      ctx.arc(r * 0.38, r * 0.38, r * 0.08 * p2, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (this.currentStyle === "blueprint") {
-      // Warning diagonal hatches
-      ctx.strokeStyle = "rgba(255,255,255,0.4)";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(-r*0.8, -r*0.8); ctx.lineTo(r*0.8, r*0.8);
-      ctx.moveTo(-r*0.4, -r*0.8); ctx.lineTo(r*0.8, r*0.4);
-      ctx.moveTo(-r*0.8, -r*0.4); ctx.lineTo(r*0.4, r*0.8);
-      ctx.stroke();
-    }
-    
-    ctx.restore();
-  }
-
-  // 8. GRASS DRAW
-  drawGrassSprite(ctx, r, color) {
-    if (this.currentStyle === "matrix") {
-      this.drawASCII(ctx, "w", r * 1.5);
-      return;
-    }
-    
-    ctx.save();
-    
-    const sway = Math.sin(Date.now() / 240) * 0.25;
-    ctx.translate(0, r * 0.7);
-
-    // Flat minimal draws green block
-    if (this.isMaterialStyle(this.currentStyle)) {
-      ctx.fillStyle = color || "#37b24d";
-      ctx.beginPath();
-      ctx.moveTo(-r*0.5, 0); ctx.lineTo(-r*0.2 + sway*4, -r*1.1); ctx.lineTo(0, 0);
-      ctx.lineTo(r*0.2 + sway*4, -r*1.3); ctx.lineTo(r*0.5, 0);
-      ctx.fill();
-      ctx.restore();
-      return;
-    }
-
-    ctx.lineWidth = 3.5;
-    ctx.lineCap = "round";
-
-    // 3 grass blades
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.4, 0);
-    ctx.quadraticCurveTo(-r * 0.45 + sway * 8, -r * 0.8, -r * 0.5 + sway * 15, -r * 1.25);
-    ctx.moveTo(0, 0);
-    ctx.quadraticCurveTo(sway * 5, -r, sway * 12, -r * 1.5);
-    ctx.moveTo(r * 0.4, 0);
-    ctx.quadraticCurveTo(r * 0.45 + sway * 8, -r * 0.7, r * 0.5 + sway * 15, -r * 1.2);
-    ctx.stroke();
-    
-    ctx.restore();
-  }
-
-  // 9. KEY DRAW
-  drawKeySprite(ctx, r, color) {
-    if (this.currentStyle === "matrix") {
-      this.drawASCII(ctx, "K", r * 1.5);
-      return;
-    }
-    
-    ctx.save();
-    ctx.rotate(-Math.PI / 4);
-
-    if (this.isMaterialStyle(this.currentStyle)) {
-      ctx.fillStyle = color || "#fcc419";
-      ctx.beginPath();
-      ctx.arc(-r*0.4, 0, r*0.32, 0, Math.PI*2);
-      ctx.rect(0, -r*0.08, r*0.85, r*0.16);
-      ctx.rect(r*0.45, r*0.08, r*0.18, r*0.25);
-      ctx.rect(r*0.7, r*0.08, r*0.18, r*0.25);
-      ctx.fill();
-      // Hole inside head
-      ctx.fillStyle = this.stylesConfig[this.currentStyle].bgMain;
-      ctx.beginPath();
-      ctx.arc(-r*0.4, 0, r*0.12, 0, Math.PI*2);
-      ctx.fill();
-      ctx.restore();
-      return;
-    }
-
-    // Key ring
-    ctx.beginPath();
-    ctx.arc(-r * 0.4, 0, r * 0.4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Hole
-    ctx.fillStyle = this.currentStyle === "chalk" ? "rgba(22, 48, 32, 1)" : this.currentStyle === "blueprint" ? "#0a2240" : this.currentStyle === "gameboy" ? "#8bac0f" : this.currentStyle === "watercolor" ? "#f4f1de" : "#030308";
-    ctx.beginPath();
-    ctx.arc(-r * 0.4, 0, r * 0.18, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Shaft
-    ctx.fillStyle = this.currentStyle === "chalk" ? "rgba(255,255,255,0.15)" : this.currentStyle === "blueprint" ? "rgba(255,255,255,0.08)" : color;
-    ctx.beginPath();
-    ctx.rect(0, -r * 0.09, r * 1.1, r * 0.18);
-    ctx.fill();
-    ctx.stroke();
-
-    // Teeth
-    ctx.beginPath();
-    ctx.rect(r * 0.65, r * 0.08, r * 0.2, r * 0.35);
-    ctx.rect(r * 0.95, r * 0.08, r * 0.2, r * 0.35);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.restore();
-  }
-
-  // 10. DOOR DRAW
-  drawDoorSprite(ctx, r, color) {
-    if (this.currentStyle === "matrix") {
-      this.drawASCII(ctx, "D", r * 1.5);
-      return;
-    }
-    
-    ctx.save();
-
-    if (this.isMaterialStyle(this.currentStyle)) {
-      ctx.fillStyle = color || "#868e96";
-      ctx.beginPath();
-      ctx.moveTo(-r*0.7, r*0.85); ctx.lineTo(-r*0.7, -r*0.35);
-      ctx.arc(0, -r*0.35, r*0.7, Math.PI, 0, false);
-      ctx.lineTo(r*0.7, r*0.85);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-      return;
-    }
-
-    // Door frame arch
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.8, r * 0.95);
-    ctx.lineTo(-r * 0.8, -r * 0.35);
-    ctx.quadraticCurveTo(0, -r * 1.1, r * 0.8, -r * 0.35);
-    ctx.lineTo(r * 0.8, r * 0.95);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // keyhole details
-    ctx.strokeStyle = this.currentStyle === "gameboy" ? "#306230" : "rgba(0, 0, 0, 0.5)";
-    ctx.lineWidth = 3.5;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(0, -r * 0.15);
-    ctx.lineTo(0, r * 0.25);
-    ctx.stroke();
-    
-    ctx.fillStyle = this.currentStyle === "gameboy" ? "#306230" : "rgba(0, 0, 0, 0.5)";
-    ctx.beginPath();
-    ctx.arc(0, -r * 0.15, r * 0.15, 0, Math.PI * 2);
-    ctx.fill();
-    
-    ctx.restore();
-  }
-
-  // 11. SKULL DRAW
-  drawSkullSprite(ctx, r, color) {
-    if (this.currentStyle === "matrix") {
-      this.drawASCII(ctx, "☠", r * 1.5);
-      return;
-    }
-    
-    ctx.save();
-
-    if (this.isMaterialStyle(this.currentStyle)) {
-      // Solid geometric minimal skull
-      ctx.fillStyle = color || "#e9ecef";
-      ctx.beginPath();
-      ctx.arc(0, -r*0.1, r*0.65, 0, Math.PI*2);
-      ctx.roundRect(-r*0.35, r*0.15, r*0.7, r*0.65, 4);
-      ctx.fill();
-      
-      // Eyes colored with background
-      ctx.fillStyle = this.stylesConfig[this.currentStyle].bgMain;
-      ctx.beginPath();
-      ctx.arc(-r*0.22, -r*0.1, r*0.16, 0, Math.PI*2);
-      ctx.arc(r*0.22, -r*0.1, r*0.16, 0, Math.PI*2);
-      ctx.fill();
-      ctx.restore();
-      return;
-    }
-
-    // Dome head
-    ctx.beginPath();
-    ctx.arc(0, -r * 0.15, r * 0.65, Math.PI, 0); 
-    ctx.lineTo(r * 0.65, r * 0.2);
-    ctx.lineTo(r * 0.35, r * 0.7); 
-    ctx.lineTo(-r * 0.35, r * 0.7); 
-    ctx.lineTo(-r * 0.65, r * 0.2); 
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Teeth
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.15, r * 0.4); ctx.lineTo(-r * 0.15, r * 0.7);
-    ctx.moveTo(0, r * 0.35); ctx.lineTo(0, r * 0.7);
-    ctx.moveTo(r * 0.15, r * 0.4); ctx.lineTo(r * 0.15, r * 0.7);
-    ctx.stroke();
-
-    // Hollow eye sockets
-    ctx.fillStyle = this.currentStyle === "gameboy" ? "#0f380f" : this.currentStyle === "chalk" ? "rgba(22, 48, 32, 1)" : this.currentStyle === "blueprint" ? "#0a2240" : "#111118";
-    ctx.beginPath();
-    ctx.arc(-r * 0.25, -r * 0.1, r * 0.18, 0, Math.PI * 2);
-    ctx.arc(r * 0.25, -r * 0.1, r * 0.18, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Red pupil glow
-    if (this.currentStyle !== "gameboy" && this.currentStyle !== "blueprint") {
-      ctx.fillStyle = "#ff0000";
-      ctx.beginPath();
-      ctx.arc(-r * 0.25, -r * 0.1, 3, 0, Math.PI * 2);
-      ctx.arc(r * 0.25, -r * 0.1, 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    
-    ctx.restore();
-  }
-
-  // 12. HEART LOVE DRAW
-  drawLoveSprite(ctx, r, color) {
-    if (this.currentStyle === "matrix") {
-      this.drawASCII(ctx, "♥", r * 1.5);
-      return;
-    }
-    
-    ctx.save();
-    
-    const pulse = 1 + 0.12 * Math.sin(Date.now() / 150);
-    ctx.scale(pulse, pulse);
-
-    if (this.isMaterialStyle(this.currentStyle)) {
-      ctx.fillStyle = color || "#e64980";
-      ctx.beginPath();
-      ctx.moveTo(0, r * 0.45);
-      ctx.bezierCurveTo(-r * 0.8, -r * 0.2, -r * 0.8, -r * 0.8, -r * 0.35, -r * 0.8);
-      ctx.bezierCurveTo(-r * 0.1, -r * 0.8, 0, -r * 0.4, 0, -r * 0.3);
-      ctx.bezierCurveTo(0, -r * 0.4, r * 0.1, -r * 0.8, r * 0.35, -r * 0.8);
-      ctx.bezierCurveTo(r * 0.8, -r * 0.8, r * 0.8, -r * 0.2, 0, r * 0.45);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-      return;
-    }
-
-    // Standard vector heart path
-    ctx.beginPath();
-    ctx.moveTo(0, r * 0.4);
-    ctx.bezierCurveTo(-r * 0.8, -r * 0.3, -r * 0.9, -r * 0.9, -r * 0.4, -r * 0.9);
-    ctx.bezierCurveTo(-r * 0.1, -r * 0.9, 0, -r * 0.4, 0, -r * 0.3);
-    ctx.bezierCurveTo(0, -r * 0.4, r * 0.1, -r * 0.9, r * 0.4, -r * 0.9);
-    ctx.bezierCurveTo(r * 0.9, -r * 0.9, r * 0.8, -r * 0.3, 0, r * 0.4);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    
-    ctx.restore();
-  }
-
-  // helper to draw letters on Matrix display
-  drawASCII(ctx, char, fontSize) {
-    ctx.font = `bold ${fontSize}px 'Press Start 2P', monospace`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = "#00ff46";
-    // shadow glow
-    ctx.shadowColor = "#00ff46";
-    ctx.shadowBlur = 10;
-    ctx.fillText(char, 0, 0);
-    ctx.shadowBlur = 0;
-  }
-
-  // WORD RENDERING
-  drawWord(ent, size, isActive) {
-    const ctx = this.ctx;
-    const padding = size * 0.08;
-    const boxW = size - padding * 2;
-    const boxH = size - padding * 2;
-
-    const wordVal = ent.value;
-    const wordType = this.getWordType(wordVal);
-    const themeColor = this.stylesConfig[this.currentStyle].wordBorders[wordType] || this.stylesConfig[this.currentStyle].textColor;
-
-    const phase = this.getWordPhase(ent.id);
-    const tX = Math.sin(Date.now() / 90 + phase * 10) * 1.2;
-    const tY = Math.cos(Date.now() / 80 + phase * 7) * 1.2;
-    ctx.translate(tX, tY);
-
-    if (this.currentStyle === "matrix") {
-      // Raw terminal green characters
-      ctx.font = `bold ${Math.floor(size * 0.20)}px 'Press Start 2P', monospace`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = isActive ? "#ffffff" : "#00ff46";
-      if (isActive) {
-        ctx.shadowColor = "#00ff46";
-        ctx.shadowBlur = 12;
-      }
-      
-      // Ensure it stays safely within the cell bounds
-      const maxMatrixTextWidth = size * 0.75;
-      const measuredWidth = ctx.measureText(wordVal).width;
-      ctx.save();
-      if (measuredWidth > maxMatrixTextWidth) {
-        const scaleFactor = maxMatrixTextWidth / measuredWidth;
-        ctx.scale(scaleFactor, scaleFactor);
-      }
-      ctx.fillText(wordVal, 0, 1);
-      ctx.restore();
-      
-      ctx.shadowBlur = 0;
-      return;
-    }
-
-    if (this.currentStyle === "paper") {
-      ctx.shadowColor = "rgba(0,0,0,0.15)";
-      ctx.shadowBlur = 4;
-      ctx.shadowOffsetY = 2;
-    } else if (isActive && this.currentStyle === "neon") {
-      ctx.shadowColor = themeColor;
-      ctx.shadowBlur = 12;
-    }
-
-    // Text box drawing
-    if (this.currentStyle === "gameboy") {
-      ctx.fillStyle = isActive ? "#306230" : "#8bac0f";
-      ctx.strokeStyle = "#306230";
-      ctx.lineWidth = 2.5;
-    } else if (this.isMaterialStyle(this.currentStyle)) {
-      ctx.fillStyle = this.fadeColor(themeColor, 0.09);
-      ctx.strokeStyle = themeColor;
-      ctx.lineWidth = isActive ? 2.5 : 1.5;
-    } else if (this.currentStyle === "chalk") {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
-      ctx.strokeStyle = isActive ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.3)";
-      ctx.lineWidth = 1.8;
-    } else {
-      ctx.fillStyle = "rgba(10, 10, 20, 0.88)";
-      ctx.strokeStyle = isActive ? themeColor : this.fadeColor(themeColor, 0.4);
-      ctx.lineWidth = isActive ? 3.5 : 2;
-    }
-
-    ctx.beginPath();
-    ctx.roundRect(-boxW / 2, -boxH / 2, boxW, boxH, this.currentStyle === "retro" ? 0 : 8);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
-
-    // Draw text inside
-    ctx.font = `bold ${Math.floor(size * 0.21)}px 'Orbitron', sans-serif`;
-    if (this.isMaterialStyle(this.currentStyle)) {
-      ctx.font = `bold ${Math.floor(size * 0.20)}px 'Outfit', sans-serif`;
-      const isDark = this.currentStyle === "materialDark" || this.currentStyle === "m3Charcoal";
-      ctx.fillStyle = isDark ? "#e3e3e3" : "#212529";
-    } else if (this.currentStyle === "gameboy") {
-      ctx.font = `bold ${Math.floor(size * 0.15)}px 'Press Start 2P', monospace`;
-      ctx.fillStyle = isActive ? "#8bac0f" : "#0f380f";
-    } else if (this.currentStyle === "retro") {
-      ctx.font = `${Math.floor(size * 0.135)}px 'Press Start 2P', monospace`;
-      ctx.fillStyle = "#ffffff";
-    } else if (this.currentStyle === "minimal") {
-      ctx.fillStyle = "#212529";
-    } else if (this.currentStyle === "chalk") {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-    } else {
-      ctx.fillStyle = isActive ? "#ffffff" : "#c5c5d0";
-    }
-    
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    // Safety check: ensure text never touches or overflows the box borders
-    const maxTextWidth = boxW * 0.80; // 80% of box width leaves 10% safety margin on each side
-    const measuredWidth = ctx.measureText(wordVal).width;
-
-    ctx.save();
-    if (measuredWidth > maxTextWidth) {
-      const scaleFactor = maxTextWidth / measuredWidth;
-      ctx.scale(scaleFactor, scaleFactor);
-    }
-    ctx.fillText(wordVal, 0, 1);
-    ctx.restore();
-  }
-
+  
   getWordType(word) {
     const nouns = ["ENZO", "KEKE", "WALL", "ROCK", "FLAG", "WATER", "LAVA", "GRASS", "KEY", "DOOR", "SKULL", "LOVE"];
     const operators = ["IS", "AND", "ON", "HAS"];
@@ -1822,288 +314,861 @@ class CanvasRenderer {
     if (operators.includes(word)) return "operator";
     return "property";
   }
-
-  fadeColor(hex, alpha) {
-    let r = 255, g = 255, b = 255;
-    if (hex.startsWith("#")) {
-      if (hex.length === 7) {
-        r = parseInt(hex.substring(1, 3), 16);
-        g = parseInt(hex.substring(3, 5), 16);
-        b = parseInt(hex.substring(5, 7), 16);
-      } else if (hex.length === 4) {
-        r = parseInt(hex[1] + hex[1], 16);
-        g = parseInt(hex[2] + hex[2], 16);
-        b = parseInt(hex[3] + hex[3], 16);
-      }
-    } else if (hex.startsWith("rgba")) {
-      return hex; // already formatted
+  
+  _parseColor(colorStr) {
+    if (!colorStr) return 0xffffff;
+    if (colorStr.startsWith("#")) {
+      return parseInt(colorStr.substring(1), 16);
     }
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    if (colorStr === "enzo") return 0x00f3ff;
+    if (colorStr === "keke") return 0xff007f;
+    return 0xffffff;
   }
-
-  // PARTICLE SYSTEMS
-  emitSingleSparkle(x, y, color) {
-    // Branch particle shapes based on active style
-    let shape = "circle";
-    let vy = -Math.random() * 1.0 - 0.5;
-    
-    if (this.currentStyle === "retro" || this.currentStyle === "gameboy") {
-      shape = "square";
-    }
-    
-    this.particles.push({
-      x: x,
-      y: y,
-      vx: (Math.random() - 0.5) * 1.5,
-      vy: vy,
-      size: Math.random() * 2.5 + 1.2,
+  
+  _mat(color, emissiveColor, opacity = 0.5) {
+    // Common material with vibrant 50% glass transparency, emissive neon internal glow, and faceted flatShading
+    return new THREE.MeshStandardMaterial({
       color: color,
-      alpha: 1,
-      life: Math.random() * 30 + 20,
-      maxLife: 50,
-      type: "sparkle",
-      shape: shape
+      roughness: 0.08,
+      metalness: 0.12,
+      transparent: true,
+      opacity: opacity,
+      flatShading: true,
+      emissive: emissiveColor || color,
+      emissiveIntensity: 1.5 // Force highly vibrant internal glow
     });
   }
-
+  
+  _buildEntityMesh(ent, rules) {
+    let mesh;
+    if (ent.type === "word") {
+      const isActive = rules ? rules.some(r => r.words.some(w => w.id === ent.id)) : false;
+      mesh = this._buildWordBlock(ent.value, isActive);
+    } else {
+      mesh = this._buildObjectMesh(ent.name);
+    }
+    return mesh;
+  }
+  
+  _buildWordBlock(wordVal, isActive) {
+    const themeColor = this._getWordColor(wordVal);
+    const boxGeo = new THREE.BoxGeometry(0.84, 0.08, 0.84);
+    
+    // Create 2D canvas texture for rule text rendering
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext("2d");
+    
+    // Background card fill
+    ctx.fillStyle = "rgba(8, 8, 18, 0.95)";
+    ctx.fillRect(0, 0, 256, 256);
+    
+    // Glowing borders
+    ctx.strokeStyle = themeColor;
+    ctx.lineWidth = isActive ? 22 : 12;
+    ctx.strokeRect(11, 11, 234, 234);
+    
+    // Bold modern rule lettering
+    ctx.font = "bold 56px 'Orbitron', sans-serif";
+    ctx.fillStyle = isActive ? "#ffffff" : "#abb2bf";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    
+    if (isActive) {
+      ctx.shadowColor = themeColor;
+      ctx.shadowBlur = 18;
+    }
+    ctx.fillText(wordVal, 128, 128);
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.MeshStandardMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.82,
+      roughness: 0.15,
+      metalness: 0.1,
+      emissive: new THREE.Color(themeColor),
+      emissiveIntensity: isActive ? 1.3 : 0.35,
+      flatShading: true
+    });
+    
+    const m = new THREE.Mesh(boxGeo, mat);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    return m;
+  }
+  
+  _updateWordBlockTexture(mesh, wordVal, isActive) {
+    if (!mesh || !mesh.material || !mesh.material.map) return;
+    
+    const themeColor = this._getWordColor(wordVal);
+    const texture = mesh.material.map;
+    const image = texture.image;
+    if (!image) return;
+    
+    const ctx = image.getContext("2d");
+    ctx.clearRect(0, 0, 256, 256);
+    
+    ctx.fillStyle = "rgba(8, 8, 18, 0.95)";
+    ctx.fillRect(0, 0, 256, 256);
+    
+    ctx.strokeStyle = themeColor;
+    ctx.lineWidth = isActive ? 22 : 12;
+    ctx.strokeRect(11, 11, 234, 234);
+    
+    ctx.font = "bold 56px 'Orbitron', sans-serif";
+    ctx.fillStyle = isActive ? "#ffffff" : "#abb2bf";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    if (isActive) {
+      ctx.shadowColor = themeColor;
+      ctx.shadowBlur = 18;
+    }
+    ctx.fillText(wordVal, 128, 128);
+    
+    texture.needsUpdate = true;
+    mesh.material.emissiveIntensity = isActive ? 1.3 : 0.35;
+  }
+  
+  _buildObjectMesh(name) {
+    const group = new THREE.Group();
+    
+    switch(name) {
+      case "enzo": {
+        // Abstract sheep player: Glowing cyan faceted dodecahedron core surrounded by a floating ring
+        const coreGeo = new THREE.DodecahedronGeometry(0.3, 0);
+        const coreMat = this._mat(0xffffff, 0x00f3ff, 0.6);
+        const core = new THREE.Mesh(coreGeo, coreMat);
+        core.castShadow = true;
+        group.add(core);
+        
+        const ringGeo = new THREE.TorusGeometry(0.45, 0.04, 6, 12);
+        const ringMat = this._mat(0x00f3ff, 0x00f3ff, 0.7);
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2; // Lie flat in XZ plane
+        ring.castShadow = true;
+        group.add(ring);
+        break;
+      }
+      
+      case "keke": {
+        // Abstract fox: Glowing magenta cone body with floating octahedron crown
+        const baseGeo = new THREE.ConeGeometry(0.35, 0.65, 4, 1);
+        const baseMat = this._mat(0xff007f, 0xff007f, 0.6);
+        const base = new THREE.Mesh(baseGeo, baseMat);
+        base.rotation.x = Math.PI; // Inverted
+        base.position.y = 0.15;
+        base.castShadow = true;
+        group.add(base);
+        
+        const crownGeo = new THREE.OctahedronGeometry(0.13, 0);
+        const crownMat = this._mat(0xffffff, 0xff007f, 0.8);
+        const crown = new THREE.Mesh(crownGeo, crownMat);
+        crown.position.y = 0.52;
+        crown.castShadow = true;
+        group.add(crown);
+        break;
+      }
+      
+      case "rock": {
+        // Faceted crystal gemstone rock
+        const geo = new THREE.IcosahedronGeometry(0.38, 0);
+        const mat = this._mat(0xff8a00, 0xff5500, 0.5);
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        group.add(mesh);
+        break;
+      }
+      
+      case "wall": {
+        // Faceted clean glass block
+        const geo = new THREE.BoxGeometry(0.85, 0.85, 0.85);
+        const mat = this._mat(0x49454f, 0x49454f, 0.4);
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        group.add(mesh);
+        break;
+      }
+      
+      case "flag": {
+        // Abstract flag: thin post with rotating floating double-cone
+        const poleGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.65, 5);
+        const poleMat = this._mat(0xffd700, 0xaa7c00, 0.6);
+        const pole = new THREE.Mesh(poleGeo, poleMat);
+        pole.position.y = 0.15;
+        pole.castShadow = true;
+        group.add(pole);
+        
+        const topGeo = new THREE.OctahedronGeometry(0.18, 0);
+        const topMat = this._mat(0xffd700, 0xffd700, 0.8);
+        const top = new THREE.Mesh(topGeo, topMat);
+        top.position.y = 0.48;
+        top.castShadow = true;
+        group.add(top);
+        break;
+      }
+      
+      case "water": {
+        // low flat blue glass box
+        const geo = new THREE.BoxGeometry(0.85, 0.08, 0.85);
+        const mat = this._mat(0x00b4db, 0x00f3ff, 0.4);
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.receiveShadow = true;
+        group.add(mesh);
+        break;
+      }
+      
+      case "lava": {
+        // low flat orange-red hot box
+        const geo = new THREE.BoxGeometry(0.85, 0.08, 0.85);
+        const mat = this._mat(0xff3300, 0xff3300, 0.5);
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.receiveShadow = true;
+        group.add(mesh);
+        break;
+      }
+      
+      case "grass": {
+        // 3 crystal grass blades
+        const bladeGeo = new THREE.OctahedronGeometry(0.09, 0);
+        const bladeMat = this._mat(0x39ff14, 0x39ff14, 0.5);
+        
+        const b1 = new THREE.Mesh(bladeGeo, bladeMat);
+        b1.scale.set(0.12, 0.6, 0.12);
+        b1.position.set(-0.15, 0.15, 0.1);
+        b1.castShadow = true;
+        group.add(b1);
+        
+        const b2 = new THREE.Mesh(bladeGeo, bladeMat);
+        b2.scale.set(0.12, 0.8, 0.12);
+        b2.position.set(0.1, 0.2, -0.15);
+        b2.castShadow = true;
+        group.add(b2);
+        
+        const b3 = new THREE.Mesh(bladeGeo, bladeMat);
+        b3.scale.set(0.10, 0.5, 0.10);
+        b3.position.set(0.05, 0.12, 0.18);
+        b3.castShadow = true;
+        group.add(b3);
+        break;
+      }
+      
+      case "key": {
+        // Floating ring key (abstract torus)
+        const torusGeo = new THREE.TorusGeometry(0.24, 0.06, 6, 12);
+        const torusMat = this._mat(0xffd700, 0xffd700, 0.6);
+        const torus = new THREE.Mesh(torusGeo, torusMat);
+        torus.castShadow = true;
+        group.add(torus);
+        break;
+      }
+      
+      case "door": {
+        // Violet portal frame
+        const postMat = this._mat(0xaa00ff, 0xaa00ff, 0.5);
+        
+        const leftPost = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.68, 0.15), postMat);
+        leftPost.position.set(-0.25, 0.2, 0);
+        leftPost.castShadow = true;
+        group.add(leftPost);
+        
+        const rightPost = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.68, 0.15), postMat);
+        rightPost.position.set(0.25, 0.2, 0);
+        rightPost.castShadow = true;
+        group.add(rightPost);
+        
+        const topBar = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.11, 0.15), postMat);
+        topBar.position.set(0, 0.53, 0);
+        topBar.castShadow = true;
+        group.add(topBar);
+        break;
+      }
+      
+      case "skull": {
+        // Dark metallic diamond-rotated cube with piercing glowing red eyes
+        const skullGeo = new THREE.BoxGeometry(0.44, 0.44, 0.44);
+        const skullMat = this._mat(0x2d3436, 0x0f1115, 0.5);
+        const mainCube = new THREE.Mesh(skullGeo, skullMat);
+        mainCube.rotation.x = Math.PI / 4;
+        mainCube.rotation.z = Math.PI / 4;
+        mainCube.castShadow = true;
+        group.add(mainCube);
+        
+        const eyeGeo = new THREE.SphereGeometry(0.045, 4, 4);
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        
+        const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+        eyeL.position.set(-0.13, 0.08, 0.20);
+        group.add(eyeL);
+        
+        const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+        eyeR.position.set(0.13, 0.08, 0.20);
+        group.add(eyeR);
+        break;
+      }
+      
+      case "love": {
+        // Glowing pink torus knot (abstract sculpture for love)
+        const knotGeo = new THREE.TorusKnotGeometry(0.2, 0.05, 24, 4, 3, 4);
+        const knotMat = this._mat(0xff2a85, 0xff007f, 0.6);
+        const knot = new THREE.Mesh(knotGeo, knotMat);
+        knot.castShadow = true;
+        group.add(knot);
+        break;
+      }
+      
+      default: {
+        const geo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+        const mat = this._mat(0xffffff, 0xffffff, 0.5);
+        const mesh = new THREE.Mesh(geo, mat);
+        group.add(mesh);
+        break;
+      }
+    }
+    
+    return group;
+  }
+  
+  _disposeMesh(mesh) {
+    if (!mesh) return;
+    mesh.traverse(child => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => {
+            if (m.map) m.map.dispose();
+            m.dispose();
+          });
+        } else {
+          if (child.material.map) child.material.map.dispose();
+          child.material.dispose();
+        }
+      }
+    });
+  }
+  
+  draw(entities, rules, cols, rows, showGrid, isEditorMode) {
+    if (!this.initialized) return;
+    
+    // Check for dimension or grid setting updates
+    if (cols !== this.currentCols || rows !== this.currentRows || showGrid !== this.currentShowGrid) {
+      this.currentCols = cols;
+      this.currentRows = rows;
+      this.currentShowGrid = showGrid;
+      this._rebuildFloor(cols, rows, showGrid);
+      this._updateCameraZoom();
+    }
+    
+    // OrbitControls logic (disable while editing to permit raycast painting)
+    if (this.controls) {
+      this.controls.enabled = !isEditorMode;
+    }
+    
+    const seenIds = new Set();
+    const time = Date.now() * 0.001;
+    
+    entities.forEach(ent => {
+      const id = ent.id;
+      seenIds.add(id);
+      
+      const base_y = this._getBaseY(ent);
+      const targetX = ent.x - cols / 2 + 0.5;
+      const targetZ = ent.y - rows / 2 + 0.5;
+      const targetY = base_y;
+      
+      let wrapper = this.meshMap.get(id);
+      
+      if (!wrapper) {
+        // Instantiate new entity mesh representation
+        const mesh = this._buildEntityMesh(ent, rules);
+        if (mesh) {
+          mesh.position.set(targetX, targetY, targetZ);
+          mesh.scale.set(0, 0, 0); // Zoom in from 0 size on spawn
+          this.scene.add(mesh);
+          
+          wrapper = {
+            mesh: mesh,
+            targetPosition: new THREE.Vector3(targetX, targetY, targetZ),
+            targetScale: 1.0,
+            idHash: Math.random() * 100,
+            entName: ent.name,
+            entType: ent.type,
+            wordValue: ent.value,
+            lastIsActive: null
+          };
+          this.meshMap.set(id, wrapper);
+        }
+      }
+      
+      if (wrapper) {
+        // Handle input block animation expiration
+        if (ent.anim) {
+          const elapsed = Date.now() - ent.anim.startTime;
+          const p = Math.min(1, elapsed / ent.anim.duration);
+          if (p >= 1) {
+            delete ent.anim;
+            wrapper.targetPosition.set(targetX, targetY, targetZ);
+          } else {
+            if (ent.anim.type === "bump") {
+              const nudge = 0.22 * Math.sin(p * Math.PI);
+              const nudgeX = ent.anim.dx * nudge;
+              const nudgeZ = ent.anim.dy * nudge;
+              wrapper.targetPosition.set(targetX + nudgeX, targetY, targetZ + nudgeZ);
+            } else {
+              wrapper.targetPosition.set(targetX, targetY, targetZ);
+            }
+          }
+        } else {
+          wrapper.targetPosition.set(targetX, targetY, targetZ);
+        }
+        wrapper.targetScale = 1.0;
+        
+        // Update mesh orientation rotations (direction map: 0:N, 1:E, 2:S, 3:W)
+        let targetAngle = 0;
+        if (ent.dir === 1) targetAngle = -Math.PI / 2;
+        else if (ent.dir === 2) targetAngle = Math.PI;
+        else if (ent.dir === 3) targetAngle = Math.PI / 2;
+        
+        if (ent.type !== "word") {
+          wrapper.mesh.rotation.y = THREE.MathUtils.lerp(wrapper.mesh.rotation.y, targetAngle, 0.18);
+        }
+        
+        // Handle rule word canvas updates on activation changes
+        if (ent.type === "word") {
+          const isActive = rules.some(r => r.words.some(w => w.id === ent.id));
+          if (wrapper.lastIsActive !== isActive) {
+            wrapper.lastIsActive = isActive;
+            this._updateWordBlockTexture(wrapper.mesh, ent.value, isActive);
+            
+            if (isActive) {
+              this.emitExplosion(ent.x, ent.y, this._getWordColor(ent.value));
+            }
+          }
+        }
+      }
+    });
+    
+    // Dispose entities that have been removed
+    this.meshMap.forEach((wrapper, id) => {
+      if (!seenIds.has(id)) {
+        wrapper.targetScale = 0;
+        wrapper.mesh.scale.lerp(new THREE.Vector3(0, 0, 0), 0.28);
+        
+        if (wrapper.mesh.scale.x < 0.05) {
+          this.scene.remove(wrapper.mesh);
+          this._disposeMesh(wrapper.mesh);
+          this.meshMap.delete(id);
+        }
+      }
+    });
+    
+    // Apply position transitions and bobbing/rotating animations
+    this.meshMap.forEach(wrapper => {
+      if (wrapper.targetScale > 0) {
+        wrapper.mesh.position.lerp(wrapper.targetPosition, 0.24);
+        
+        const s = THREE.MathUtils.lerp(wrapper.mesh.scale.x, wrapper.targetScale, 0.22);
+        wrapper.mesh.scale.set(s, s, s);
+        
+        // Cozy floating idle bob
+        const bob = Math.sin(time * 3.0 + wrapper.idHash) * 0.045;
+        wrapper.mesh.position.y = wrapper.targetPosition.y + bob;
+        
+        // Slow rotating animations for key, flag top, love torus, enzo ring
+        if (wrapper.entName === "key" || wrapper.entName === "love") {
+          wrapper.mesh.rotation.y += 0.02;
+        } else if (wrapper.entName === "flag" && wrapper.mesh.children.length > 1) {
+          wrapper.mesh.children[1].rotation.y += 0.035;
+        } else if (wrapper.entName === "enzo" && wrapper.mesh.children.length > 1) {
+          wrapper.mesh.children[1].rotation.y += 0.012;
+          wrapper.mesh.children[1].rotation.x += 0.006;
+        }
+      }
+    });
+  }
+  
+  drawBackground() {
+    if (!this.initialized) return;
+    
+    const time = Date.now() * 0.001;
+    
+    // 1. Slow rotate starfields (provides depth/parallax)
+    this.starfields.forEach(sf => {
+      sf.mesh.rotation.y += sf.speedY;
+      sf.mesh.rotation.x += sf.speedX;
+    });
+    
+    // 2. Slow rotate volumetric nebulae
+    this.nebulae.forEach(neb => {
+      neb.mesh.rotation.z += neb.speed;
+    });
+    
+    // 3. Emissive Floor grid pulsator radial waves
+    if (this.floorMeshes.length > 0) {
+      this.floorMeshes.forEach(tile => {
+        const dx = tile.position.x;
+        const dz = tile.position.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        const wave = 0.08 + 0.15 * Math.sin(time * 1.5 - dist * 0.35);
+        tile.material.emissiveIntensity = Math.max(0, wave);
+      });
+    }
+    
+    // 4. Update 3D particles
+    this._updateParticles();
+    
+    // 5. Apply screen-shake logic
+    if (this.shakeIntensity > 0.01) {
+      const shakeX = (Math.random() - 0.5) * this.shakeIntensity;
+      const shakeY = (Math.random() - 0.5) * this.shakeIntensity;
+      const shakeZ = (Math.random() - 0.5) * this.shakeIntensity;
+      
+      this.camera.position.set(
+        this.cameraBasePos.x + shakeX,
+        this.cameraBasePos.y + shakeY,
+        this.cameraBasePos.z + shakeZ
+      );
+      this.shakeIntensity *= this.shakeDecay;
+    } else {
+      this.camera.position.copy(this.cameraBasePos);
+      this.shakeIntensity = 0;
+    }
+    
+    // 6. Draw WebGL Scene
+    this.renderer.render(this.scene, this.camera);
+  }
+  
+  // --- Particle Systems ---
+  emitExplosion(gridX, gridY, colorStr) {
+    const cols = this.currentCols || 15;
+    const rows = this.currentRows || 11;
+    const px = gridX - cols / 2 + 0.5;
+    const pz = gridY - rows / 2 + 0.5;
+    const py = 0.35;
+    
+    const count = 18;
+    const colHex = this._parseColor(colorStr);
+    const geo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+    
+    for (let i = 0; i < count; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: colHex,
+        transparent: true,
+        opacity: 0.95
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(px, py, pz);
+      this.scene.add(mesh);
+      
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 0.11 + 0.05;
+      const vy = Math.random() * 0.11 - 0.03;
+      
+      this.particles.push({
+        mesh: mesh,
+        vx: Math.cos(angle) * speed,
+        vy: vy,
+        vz: Math.sin(angle) * speed,
+        life: 25 + Math.floor(Math.random() * 15),
+        maxLife: 40,
+        drag: 0.93
+      });
+    }
+  }
+  
   emitDust(gridX, gridY, dx, dy) {
-    const cX = this.gridOffsetX + gridX * this.cellWidth + this.cellWidth / 2;
-    const cY = this.gridOffsetY + gridY * this.cellHeight + this.cellHeight / 2;
+    const cols = this.currentCols || 15;
+    const rows = this.currentRows || 11;
+    const px = gridX - cols / 2 + 0.5;
+    const pz = gridY - rows / 2 + 0.5;
+    const py = 0.08;
     
-    const count = 6;
-    let col = "rgba(150, 150, 160, 0.4)";
-    let shape = "circle";
-    
-    if (this.currentStyle === "chalk") {
-      col = "rgba(255, 255, 255, 0.5)"; // chalk powder
-    } else if (this.currentStyle === "gameboy") {
-      col = "rgba(48, 98, 48, 0.4)";
-      shape = "square";
-    } else if (this.currentStyle === "matrix") {
-      col = "rgba(0, 255, 70, 0.4)";
-    }
+    const count = 8;
+    const geo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
     
     for (let i = 0; i < count; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x88889a,
+        transparent: true,
+        opacity: 0.7
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(px, py, pz);
+      this.scene.add(mesh);
+      
+      const vx = dx * 0.05 + (Math.random() - 0.5) * 0.03;
+      const vz = dy * 0.05 + (Math.random() - 0.5) * 0.03;
+      const vy = Math.random() * 0.05 + 0.01;
+      
       this.particles.push({
-        x: cX + (Math.random() - 0.5) * 15,
-        y: cY + (Math.random() - 0.5) * 15,
-        vx: -dx * (Math.random() * 1.5 + 0.5) + (Math.random() - 0.5) * 0.8,
-        vy: -dy * (Math.random() * 1.5 + 0.5) + (Math.random() - 0.5) * 0.8,
-        size: Math.random() * 3 + 1.5,
-        color: col,
-        alpha: 0.6,
-        life: 15 + Math.random() * 10,
+        mesh: mesh,
+        vx: vx,
+        vy: vy,
+        vz: vz,
+        life: 15 + Math.floor(Math.random() * 10),
         maxLife: 25,
-        type: "dust",
-        shape: shape
+        drag: 0.92
       });
     }
   }
-
-  emitRuleSparkles(gridX, gridY, color) {
-    const cX = this.gridOffsetX + gridX * this.cellWidth + this.cellWidth / 2;
-    const cY = this.gridOffsetY + gridY * this.cellHeight + this.cellHeight / 2;
+  
+  emitSplash(gridX, gridY, colorStr) {
+    const cols = this.currentCols || 15;
+    const rows = this.currentRows || 11;
+    const px = gridX - cols / 2 + 0.5;
+    const pz = gridY - rows / 2 + 0.5;
+    const py = 0.05;
     
-    const count = this.currentStyle === "matrix" ? 25 : 15;
+    const count = 12;
+    const colHex = this._parseColor(colorStr);
+    const geo = new THREE.BoxGeometry(0.09, 0.16, 0.09);
+    
     for (let i = 0; i < count; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: colHex,
+        transparent: true,
+        opacity: 0.85
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(px, py, pz);
+      this.scene.add(mesh);
+      
       const angle = Math.random() * Math.PI * 2;
-      const speed = Math.random() * 2 + 1;
+      const speed = Math.random() * 0.07 + 0.02;
+      const vy = Math.random() * 0.12 + 0.08;
+      
       this.particles.push({
-        x: cX,
-        y: cY,
+        mesh: mesh,
         vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 0.8,
-        size: Math.random() * 4 + 1.5,
-        color: color,
-        alpha: 1,
-        life: 30 + Math.random() * 20,
-        maxLife: 50,
-        type: "sparkle",
-        shape: (this.currentStyle === "retro" || this.currentStyle === "gameboy") ? "square" : "circle"
+        vy: vy,
+        vz: Math.sin(angle) * speed,
+        life: 20 + Math.floor(Math.random() * 12),
+        maxLife: 32,
+        drag: 0.94,
+        gravity: 0.008
       });
     }
   }
-
-  emitSplash(gridX, gridY, color = "#00b4db") {
-    const cX = this.gridOffsetX + gridX * this.cellWidth + this.cellWidth / 2;
-    const cY = this.gridOffsetY + gridY * this.cellHeight + this.cellHeight / 2;
-    
-    if (this.currentStyle === "gameboy") color = "#0f380f";
-    
-    for (let i = 0; i < 12; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = Math.random() * 3 + 1;
-      this.particles.push({
-        x: cX,
-        y: cY,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 0.5,
-        size: Math.random() * 3.5 + 1.5,
-        color: color,
-        alpha: 1,
-        life: 20 + Math.random() * 15,
-        maxLife: 35,
-        type: "splash",
-        shape: (this.currentStyle === "retro" || this.currentStyle === "gameboy") ? "square" : "circle"
-      });
-    }
-  }
-
-  emitExplosion(gridX, gridY, color = "#ff4400") {
-    const cX = this.gridOffsetX + gridX * this.cellWidth + this.cellWidth / 2;
-    const cY = this.gridOffsetY + gridY * this.cellHeight + this.cellHeight / 2;
-    
-    if (this.currentStyle === "gameboy") color = "#0f380f";
-    if (this.currentStyle === "matrix") color = "#00ff46";
-    if (this.currentStyle === "chalk") color = "#ffffff";
-
-    for (let i = 0; i < 20; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = Math.random() * 4 + 1.5;
-      this.particles.push({
-        x: cX,
-        y: cY,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        size: Math.random() * 5 + 2,
-        color: color,
-        alpha: 1,
-        life: 25 + Math.random() * 20,
-        maxLife: 45,
-        type: "explosion",
-        shape: (this.currentStyle === "retro" || this.currentStyle === "gameboy") ? "square" : "circle"
-      });
-    }
-  }
-
+  
   emitVictoryFireworks() {
-    const w = this.canvas.width / (window.devicePixelRatio || 1);
-    const h = this.canvas.height / (window.devicePixelRatio || 1);
+    const cols = this.currentCols || 15;
+    const rows = this.currentRows || 11;
+    const halfCols = cols / 2;
+    const halfRows = rows / 2;
     
-    let c1 = "#ffd700";
-    let c2 = "#00f3ff";
-    if (this.currentStyle === "gameboy") { c1 = "#306230"; c2 = "#0f380f"; }
+    this._launchFireworkRocket(-halfCols + 1, halfRows - 1);
+    this._launchFireworkRocket(halfCols - 1, halfRows - 1);
+  }
+  
+  _launchFireworkRocket(x, z) {
+    const geo = new THREE.BoxGeometry(0.16, 0.32, 0.16);
+    const color = Math.random() > 0.5 ? 0xff007f : 0x00f3ff;
+    const mat = new THREE.MeshBasicMaterial({ color: color });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, 0, z);
+    this.scene.add(mesh);
     
     this.particles.push({
-      x: w * 0.25 + (Math.random() - 0.5) * 50,
-      y: h,
-      vx: (Math.random() * 1.5 + 0.5),
-      vy: -(Math.random() * 6 + 10),
-      size: 4,
-      color: c1,
-      alpha: 1,
-      life: 50,
-      maxLife: 50,
-      type: "rocket"
-    });
-    this.particles.push({
-      x: w * 0.75 + (Math.random() - 0.5) * 50,
-      y: h,
-      vx: -(Math.random() * 1.5 + 0.5),
-      vy: -(Math.random() * 6 + 10),
-      size: 4,
-      color: c2,
-      alpha: 1,
-      life: 50,
-      maxLife: 50,
-      type: "rocket"
+      mesh: mesh,
+      vx: (Math.random() - 0.5) * 0.06 - x * 0.02,
+      vy: Math.random() * 0.14 + 0.26,
+      vz: (Math.random() - 0.5) * 0.06 - z * 0.02,
+      life: 38 + Math.floor(Math.random() * 10),
+      maxLife: 48,
+      gravity: 0.004,
+      drag: 0.97,
+      isRocket: true,
+      rocketColor: color
     });
   }
-
-  triggerFireworkBurst(x, y, color) {
-    let colors = [color, "#ff007f", "#39ff14", "#ffaa00", "#ffffff"];
-    if (this.currentStyle === "gameboy") {
-      colors = ["#306230", "#0f380f", "#8bac0f", "#9bbc0f"];
-    }
-    const col = colors[Math.floor(Math.random() * colors.length)];
-    for (let i = 0; i < 40; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = Math.random() * 5 + 2;
-      this.particles.push({
-        x: x,
-        y: y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        size: Math.random() * 3 + 1,
-        color: col,
-        alpha: 1,
-        life: 40 + Math.random() * 30,
-        maxLife: 70,
-        type: "sparkle",
-        shape: (this.currentStyle === "retro" || this.currentStyle === "gameboy") ? "square" : "circle"
-      });
-    }
-  }
-
-  updateParticles() {
+  
+  _updateParticles() {
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.life--;
-      p.alpha = Math.max(0, p.life / p.maxLife);
       
-      if (p.type === "rocket") {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.vy += 0.2;
-        if (Math.random() < 0.3) {
-          this.emitSingleSparkle(p.x, p.y, p.color);
-        }
-        if (p.life <= 0 || p.vy >= 0) {
-          this.triggerFireworkBurst(p.x, p.y, p.color);
-          this.particles.splice(i, 1);
-        }
-      } else {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.vx *= 0.96;
-        if (p.type === "sparkle") {
-          p.vy += 0.03;
-        } else if (p.type === "dust") {
-          p.vy *= 0.94;
-        } else {
-          p.vy += 0.08;
+      if (p.life <= 0) {
+        if (p.isRocket) {
+          this._burstFirework(p.mesh.position.x, p.mesh.position.y, p.mesh.position.z, p.rocketColor);
         }
         
-        if (p.life <= 0) {
-          this.particles.splice(i, 1);
-        }
+        this.scene.remove(p.mesh);
+        p.mesh.geometry.dispose();
+        p.mesh.material.dispose();
+        this.particles.splice(i, 1);
+        continue;
+      }
+      
+      p.mesh.position.x += p.vx;
+      p.mesh.position.y += p.vy;
+      p.mesh.position.z += p.vz;
+      
+      if (p.gravity) p.vy -= p.gravity;
+      p.vx *= p.drag || 1;
+      p.vy *= p.drag || 1;
+      p.vz *= p.drag || 1;
+      
+      const progress = p.life / p.maxLife;
+      if (!p.isRocket) {
+        p.mesh.material.opacity = progress;
+        p.mesh.scale.set(progress, progress, progress);
       }
     }
   }
-
-  drawParticles() {
-    const ctx = this.ctx;
-    ctx.save();
+  
+  _burstFirework(x, y, z, colorHex) {
+    const count = 32;
+    const geo = new THREE.BoxGeometry(0.08, 0.08, 0.08);
+    for (let i = 0; i < count; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity: 1.0
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, y, z);
+      this.scene.add(mesh);
+      
+      const angle = Math.random() * Math.PI * 2;
+      const pitch = (Math.random() - 0.5) * Math.PI;
+      const speed = Math.random() * 0.14 + 0.06;
+      
+      this.particles.push({
+        mesh: mesh,
+        vx: Math.cos(angle) * Math.cos(pitch) * speed,
+        vy: Math.sin(pitch) * speed,
+        vz: Math.sin(angle) * Math.cos(pitch) * speed,
+        life: 30 + Math.floor(Math.random() * 20),
+        maxLife: 50,
+        gravity: 0.003,
+        drag: 0.94
+      });
+    }
+    this.triggerShake(6);
+  }
+  
+  triggerShake(intensity) {
+    this.shakeIntensity = Math.max(this.shakeIntensity, intensity * 0.065);
+  }
+  
+  getGridCellFromMouse(clientX, clientY, cols, rows) {
+    if (!this.camera || !this.canvas) return null;
     
-    this.particles.forEach(p => {
-      ctx.beginPath();
+    const rect = this.canvas.getBoundingClientRect();
+    const x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
+    
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const target = new THREE.Vector3();
+    
+    if (raycaster.ray.intersectPlane(plane, target)) {
+      const gridX = Math.floor(target.x + cols / 2);
+      const gridY = Math.floor(target.z + rows / 2);
       
-      const pColor = this.fadeColor(p.color, p.alpha);
+      return { cellX: gridX, cellY: gridY };
+    }
+    return null;
+  }
+  
+  renderEditorThumbnails() {
+    const canvases = document.querySelectorAll(".brush-preview-canvas");
+    if (canvases.length === 0) return;
+    
+    const width = 64;
+    const height = 64;
+    const offscreenRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    offscreenRenderer.setSize(width, height);
+    offscreenRenderer.setPixelRatio(1);
+    offscreenRenderer.setClearColor(0x000000, 0); // Transparent backgrounds
+    
+    const scene = new THREE.Scene();
+    
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(3, 8, 3);
+    scene.add(dirLight);
+    
+    // Set up orthographic camera looking isometrically at the model
+    const aspect = 1;
+    const d = 0.55;
+    const camera = new THREE.OrthographicCamera(-d, d, d, -d, 1, 100);
+    camera.position.set(2, 2, 2);
+    camera.lookAt(0, 0, 0);
+    
+    canvases.forEach(canvas => {
+      const brush = canvas.closest(".brush-btn").dataset.brush;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, width, height);
       
-      // Select particle draw shape
-      if (p.shape === "square") {
-        ctx.fillStyle = pColor;
-        ctx.fillRect(p.x - p.size, p.y - p.size, p.size * 2, p.size * 2);
-      } else {
-        // Circle shape
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      let mesh;
+      if (brush === "eraser") {
+        const bodyGeo = new THREE.BoxGeometry(0.5, 0.22, 0.38);
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0xff6b8b, roughness: 0.2, flatShading: true });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
         
-        if (p.type === "sparkle" && this.currentStyle === "neon") {
-          ctx.shadowColor = p.color;
-          ctx.shadowBlur = p.size * 3;
-          ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha})`;
-        } else {
-          ctx.shadowBlur = 0;
-          ctx.fillStyle = pColor;
-        }
-        ctx.fill();
+        const sleeveGeo = new THREE.BoxGeometry(0.25, 0.24, 0.40);
+        const sleeveMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, flatShading: true });
+        const sleeve = new THREE.Mesh(sleeveGeo, sleeveMat);
+        sleeve.position.x = -0.12;
+        
+        mesh = new THREE.Group();
+        mesh.add(body);
+        mesh.add(sleeve);
+      } else if (brush.startsWith("word-")) {
+        const val = brush.substring(5);
+        mesh = this._buildEntityMesh({ type: "word", value: val });
+      } else {
+        mesh = this._buildEntityMesh({ type: "object", name: brush });
       }
+      
+      if (!mesh) return;
+      
+      mesh.position.set(0, 0, 0);
+      
+      // Make specific adjustments so they fit perfectly in the grid buttons
+      if (brush === "wall") {
+        mesh.scale.set(0.85, 0.85, 0.85);
+      } else if (brush === "key") {
+        mesh.rotation.x = Math.PI / 4;
+        mesh.rotation.y = Math.PI / 4;
+      } else if (brush.startsWith("word-")) {
+        mesh.rotation.x = -Math.PI / 4;
+        mesh.rotation.y = Math.PI / 4;
+        mesh.scale.set(0.9, 0.9, 0.9);
+      }
+      
+      scene.add(mesh);
+      offscreenRenderer.render(scene, camera);
+      ctx.drawImage(offscreenRenderer.domElement, 0, 0, width, height);
+      
+      scene.remove(mesh);
+      this._disposeMesh(mesh);
     });
     
-    ctx.restore();
+    offscreenRenderer.dispose();
+  }
+  
+  // --- UI Settings compatibility stubs ---
+  setStyle(style) {
+    this.currentStyle = style;
+  }
+  
+  setColorScheme(scheme) {
+    this.currentColorScheme = scheme;
+  }
+  
+  isMaterialStyle(style) {
+    return false;
   }
 }
 
-// Global instance
-const Renderer = new CanvasRenderer();
+// Global instance mapping
+const Renderer = new ThreeRenderer();
 window.Renderer = Renderer;
