@@ -1,5 +1,7 @@
 # 🐏 Enzo Is You - HTML5 Canvas Edition
 
+![Enzo Is You Screenshot](pic.png)
+
 An interactive, visual-heavy, procedurally audio-enabled game in HTML5 Canvas, Vanilla CSS, and modular Vanilla JavaScript. The entire codebase is self-contained and operates directly from a local drive (completely free of CORS issues).
 
 ### 🎮 [PLAY ONLINE NOW](https://enzocage.de/code/enzo_is_you)
