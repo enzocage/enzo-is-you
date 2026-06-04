@@ -292,7 +292,10 @@ class LevelEditor {
       })
     };
 
-    const jsonStr = JSON.stringify(data, null, 2);
+     const jsonStr = JSON.stringify(data, null, 2);
+    
+    // Hide file import selector on export
+    document.getElementById("importFileContainer").classList.add("hide");
     
     // Open Export modal
     document.getElementById("jsonModalTitle").textContent = "EXPORT LEVEL JSON";
@@ -331,7 +334,12 @@ class LevelEditor {
 
   importJSON() {
     document.getElementById("jsonModalTitle").textContent = "IMPORT LEVEL JSON";
-    document.getElementById("jsonModalDesc").textContent = "Paste a valid level JSON configuration below and click IMPORT.";
+    document.getElementById("jsonModalDesc").textContent = "Select a level JSON file or paste the JSON configuration below.";
+    
+    // Show file import container & reset file label
+    document.getElementById("importFileContainer").classList.remove("hide");
+    document.getElementById("lblFileName").textContent = "No file chosen";
+    document.getElementById("fileLevelImport").value = "";
     
     const txtArea = document.getElementById("txtJsonArea");
     txtArea.value = "";
@@ -356,15 +364,18 @@ class LevelEditor {
         document.getElementById("editWidth").value = this.width;
         document.getElementById("editHeight").value = this.height;
 
-        this.editorEntities = parsed.entities.map(e => ({
-          id: `ent_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
-          type: e.type,
-          name: e.name,
-          x: e.x,
-          y: e.y,
-          value: e.value,
-          dir: e.dir !== undefined ? e.dir : 1
-        }));
+        this.editorEntities = parsed.entities.map(e => {
+          const isWord = e.type === "word";
+          return {
+            id: `ent_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+            type: isWord ? "word" : "object",
+            name: isWord ? "text" : (e.name ? e.name.toLowerCase() : "wall"),
+            x: parseInt(e.x),
+            y: parseInt(e.y),
+            value: isWord ? (e.value ? e.value.toUpperCase() : "IS") : undefined,
+            dir: e.dir !== undefined ? e.dir : 1
+          };
+        });
 
         this.syncEditorToGame();
         document.getElementById("jsonModal").classList.add("hide");
@@ -449,6 +460,23 @@ class LevelEditor {
     document.getElementById("btnCloseJsonModal").addEventListener("click", () => {
       document.getElementById("jsonModal").classList.add("hide");
     });
+
+    // File import change handler
+    const fileImport = document.getElementById("fileLevelImport");
+    if (fileImport) {
+      fileImport.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        document.getElementById("lblFileName").textContent = file.name;
+        
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          document.getElementById("txtJsonArea").value = event.target.result;
+        };
+        reader.readAsText(file);
+      });
+    }
 
     // Copy JSON to clipboard
     document.getElementById("btnCopyJson").addEventListener("click", () => {
@@ -675,15 +703,18 @@ Gefordertes JSON-Format:
       document.getElementById("editWidth").value = this.width;
       document.getElementById("editHeight").value = this.height;
 
-      this.editorEntities = levelData.entities.map(e => ({
-        id: `ent_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
-        type: e.type,
-        name: e.name,
-        x: e.x,
-        y: e.y,
-        value: e.value,
-        dir: e.dir !== undefined ? e.dir : 1
-      }));
+      this.editorEntities = levelData.entities.map(e => {
+        const isWord = e.type === "word";
+        return {
+          id: `ent_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+          type: isWord ? "word" : "object",
+          name: isWord ? "text" : (e.name ? e.name.toLowerCase() : "wall"),
+          x: parseInt(e.x),
+          y: parseInt(e.y),
+          value: isWord ? (e.value ? e.value.toUpperCase() : "IS") : undefined,
+          dir: e.dir !== undefined ? e.dir : 1
+        };
+      });
 
       this.syncEditorToGame();
       Sound.playSFX("win");

@@ -278,6 +278,14 @@
         <button id="btnCloseJsonModal" class="btn-close">&times;</button>
       </div>
       <p id="jsonModalDesc">Copy or paste your level JSON below.</p>
+      
+      <!-- File Import Selection (Visible only during Import) -->
+      <div id="importFileContainer" class="hide" style="margin-bottom: 5px; display: flex; align-items: center; gap: 10px;">
+        <label for="fileLevelImport" class="btn btn-accent" style="display: inline-block; cursor: pointer; text-align: center; margin: 0; padding: 8px 12px; font-size: 0.85rem;">CHOOSE FILE</label>
+        <input type="file" id="fileLevelImport" accept=".json" style="display: none;">
+        <span id="lblFileName" style="font-size: 0.85rem; color: var(--text-muted);">No file chosen</span>
+      </div>
+
       <textarea id="txtJsonArea" placeholder="Paste level JSON here..."></textarea>
       <div class="modal-actions">
         <button id="btnJsonAction" class="btn btn-primary">APPLY</button>
