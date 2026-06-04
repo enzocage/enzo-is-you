@@ -635,41 +635,72 @@ class LevelEditor {
     await updateProgress("Die KI träumt von einem Labyrinth...", 600);
     await updateProgress("Berechne logische Pfade und Rätselstrukturen...", 600);
 
-    const prompt = `Du bist eine hochintelligente KI zur Generierung von spielbaren Leveln für einen Klon des Puzzle-Spiels "Baba Is You".
-Erstelle ein gültiges, interessantes und lösbares Level im JSON-Format auf Basis der folgenden Spezifikationen.
+    const prompt = `Du bist eine hochkreative und extrem logisch denkende KI zur Generierung von spielbaren Leveln für einen Klon des Puzzle-Spiels "Baba Is You" (namens "Enzo Is You").
+Erstelle ein gültiges, interessantes und lösbares Level im JSON-Format auf Gitterbasis.
 
-SCHWIERIGKEITSGRAD: ${aiDifficulty} von 10.
-- Grad 1-2: Sehr einfacher, gerader Weg zur Flagge mit vordefinierten Regeln.
-- Grad 3-4: Einfach, verschiebbare Steine blockieren den Weg.
-- Grad 5-6: Mittel, der Spieler muss Textblöcke schieben, um eine Regel (wie "FLAG IS WIN" oder "WALL IS PUSH") zu vervollständigt werden.
-- Grad 7-8: Schwierig, Gefahren (LAVA IS DEFEAT, WATER IS SINK) oder Interaktionen (KEY IS OPEN, DOOR IS SHUT) erfordern überlegtes Vorgehen.
-- Grad 9-10: Extrem intelligent, benötigt fortgeschrittene Logik wie Transformationen (z.B. "ROCK IS ENZO"), sich überlagernde Eigenschaften, oder Kettenreaktionen.
+### 🎮 SPIELBESCHREIBUNG UND LOGIK:
+In "Enzo Is You" sind die Gitter-Regeln physische Blöcke im Spielfeld, die geschoben werden können.
+Regeln werden horizontal oder vertikal als dreiteilige Wort-Sätze ausgelesen: [Subjekt-Wort] [IS-Wort] [Eigenschafts-Wort oder Subjekt-Wort] (z.B. "ENZO IS YOU", "FLAG IS WIN").
+- Das Ziel ist, dass ein Element, das die Eigenschaft "YOU" besitzt, ein Element berührt, das die Eigenschaft "WIN" besitzt.
+- Die Herausforderung liegt darin, dass der Weg oft blockiert ist (z. B. durch Wände mit der Eigenschaft "STOP"), Schlüssel und Türen kombiniert werden müssen, oder man Gefahren umgehen muss. Der Spieler muss Regeln verändern, um das Level zu lösen.
 
-LEVEL-ABMESSUNGEN:
-Breite (cols): 15, Höhe (rows): 11.
-Die Koordinaten x liegen im Bereich [0, 14], y im Bereich [0, 10].
+### 🧩 DETALLIERTE SPIELELEMENTE UND ZUSAMMENSPIEL:
+- **Subjekte (Objektname / Text-Wert):**
+  - "enzo" / "ENZO" (Das Schaf - Standard-Spielfigur)
+  - "keke" / "KEKE" (Ein kleiner Fuchs)
+  - "wall" / "WALL" (Wände)
+  - "rock" / "ROCK" (Steine)
+  - "flag" / "FLAG" (Ziel-Flagge)
+  - "water" / "WATER" (Wasserpfützen)
+  - "lava" / "LAVA" (Glühende Lava)
+  - "grass" / "GRASS" (Dekoratives Gras)
+  - "key" / "KEY" (Schlüssel)
+  - "door" / "DOOR" (Verschlossene Tür)
+  - "skull" / "SKULL" (Tödliche Totenköpfe)
+  - "love" / "LOVE" (Rote Herzen)
+- **Operator (Text-Wert):**
+  - "IS" (Verbindet Subjekt und Eigenschaft/Subjekt)
+- **Eigenschaften (Text-Wert):**
+  - "YOU": Macht das Subjekt-Objekt steuerbar. Alle YOU-Objekte bewegen sich simultan bei Tastendruck.
+  - "STOP": Das Objekt ist solide und blockiert das Betreten (außer es ist auch PUSH).
+  - "PUSH": Das Objekt kann von YOU-Objekten geschoben werden.
+  - "WIN": Löst den Sieg aus, wenn es von einem YOU-Objekt betreten wird.
+  - "DEFEAT": Zerstört jedes YOU-Objekt, das dieses Feld betritt.
+  - "SINK": Versinkt mit dem betretenden Objekt (beide werden zerstört).
+  - "HOT": Zerstört darauf bewegte MELT-Objekte.
+  - "MELT": Wird zerstört, wenn es auf ein HOT-Objekt bewegt wird.
+  - "OPEN": Schließt ein SHUT-Objekt auf (beide werden beim Überlappen zerstört).
+  - "SHUT": Blockiert, bis ein OPEN-Objekt es berührt und aufschließt.
 
-VALIDIERUNGSREGELN UND FORMATIERUNG:
-1. Das Level MUSS mit einer dicken Außenmauer aus "wall" Objekten umschlossen sein. Platziere "wall" Objekte an allen Rändern (x=0, x=14, y=0, y=10).
-2. Es MUSS einen Start-Zustand geben, bei dem der Spieler steuern kann (z.B. ein "enzo" Objekt auf dem Spielfeld und die Textblöcke "ENZO", "IS", "YOU" so aufgereiht, dass sie eine horizontale oder vertikale Regel bilden).
-3. Es MUSS ein Ziel geben (z.B. ein "flag" Objekt und die Textblöcke "FLAG", "IS", "WIN" nebeneinander aufgereiht).
-4. Wenn ein Element ein physisches Objekt ist (wie Enzo, Wände, Steine, Flaggen), muss es so formatiert sein:
-   {"type": "object", "name": "NAME", "x": X, "y": Y}
-   Gültige Objektnamen (lowercase): "enzo", "keke", "wall", "rock", "flag", "water", "lava", "grass", "key", "door", "skull", "love".
-5. Wenn ein Element ein Textwort-Block ist (der geschoben werden kann, um Regeln zu definieren), muss es so formatiert sein:
-   {"type": "word", "name": "text", "x": X, "y": Y, "value": "WERT"}
-   Gültige Textwerte (uppercase):
-   - Nouns: "ENZO", "KEKE", "WALL", "ROCK", "FLAG", "WATER", "LAVA", "GRASS", "KEY", "DOOR", "SKULL", "LOVE"
-   - Operator: "IS"
-   - Properties: "YOU", "PUSH", "STOP", "WIN", "DEFEAT", "SINK", "MELT", "HOT", "OPEN", "SHUT"
-6. Gib AUSSCHLIESSLICH das rohe JSON-Objekt zurück. Verwende keine Markdown-Formatierung wie \\\`json...\\\`.
+### 🔄 RÜCKWÄRTS-ENTWURFSVERFAHREN (BACKWARD CONSTRUCTION):
+Um eine 100%ige Lösbarkeit zu garantieren, plane das Level RÜCKWÄRTS:
+1. Nimm den Zielzustand (z. B. Enzo steht auf der Flagge).
+2. Gehe in Gedanken Schritte rückwärts (z. B. Enzo geht zurück; Steine werden zurückgezogen; Regeln werden rückwärts getrennt).
+3. Für eine Spielstärke von D = ${aiDifficulty} von 10:
+   - Der rückwärts geplante Lösungspfad muss mindestens D * 2 logische Schritte umfassen.
+   - Je höher D ist, desto mehr Spielelemente und logische Verwandlungen müssen im Weg liegen.
+   - Dokumentiere diese gedanklichen Schritte chronologisch im Array "solution_steps" des JSON-Objekts.
+
+### 📐 STRUKTUR-VORGABEN:
+- Breite: 15 (x = 0 bis 14), Höhe: 11 (y = 0 bis 10).
+- Platziere lückenlose Außenmauern ("wall") an allen Rändern (x=0, x=14, y=0, y=10).
+- Textblöcke und wichtige Objekte dürfen nicht direkt an Wänden platziert werden, wo sie feststecken und unbrauchbar werden könnten.
+- Am Start MUSS eine steuerbare Bewegung möglich sein (z.B. ein "enzo"-Objekt und die Textblöcke "ENZO", "IS", "YOU" nebeneinander).
+
+### 📋 ROHE JSON-ANTWORT:
+Gib AUSSCHLIESSLICH das rohe JSON-Objekt zurück. Keine Markdown-Fahrstühle (\`\`\`json...), kein Text drumherum.
 
 Gefordertes JSON-Format:
 {
-  "name": "Ein kreativer deutscher Levelname passend zum Rätsel",
+  "name": "Kreativer deutscher Levelname passend zum Rätsel",
   "width": 15,
   "height": 11,
-  "hint": "Ein hilfreicher Tipp auf Deutsch für dieses Rätsel",
+  "hint": "Tipp auf Deutsch, der den logischen Kniff andeutet",
+  "solution_steps": [
+    "Schritt 1 (Rückwärts): Enzo steht auf der Flagge (x=12, y=5). FLAG IS WIN und ENZO IS YOU sind aktiv.",
+    "Schritt 2: Enzo geht einen Schritt nach links...",
+    "..."
+  ],
   "entities": [
     {"type": "object", "name": "wall", "x": 0, "y": 0},
     ...
