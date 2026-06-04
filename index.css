@@ -1220,3 +1220,18 @@ kbd {
     color: var(--text-muted);
   }
 }
+
+/* AI Generator Spinner & Details */
+.ai-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(168, 85, 247, 0.2);
+  border-radius: 50%;
+  border-top-color: #ff007f;
+  border-left-color: #00f3ff;
+  animation: ai-spin 1s linear infinite;
+}
+
+@keyframes ai-spin {
+  to { transform: rotate(360deg); }
+}
